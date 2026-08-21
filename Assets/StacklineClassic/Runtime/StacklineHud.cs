@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace Wukong.StacklineClassic
 {
@@ -73,6 +74,9 @@ namespace Wukong.StacklineClassic
         private float perfectTimer;
         private float toastTimer;
         private Color accentColor = new Color(0.93f, 0.68f, 0.20f, 1f);
+        private const float HeadLockedDistanceMeters = 2.6f;
+        private bool xrWorldSpace;
+        private Camera uiCamera;
 
         public bool CapturesPrimaryInput => currentPanel != MenuPanel.None || IsPointerOverMenuButton();
 
@@ -100,13 +104,23 @@ namespace Wukong.StacklineClassic
             return false;
         }
 
-        public void Configure(StacklineClassicController newController, Camera gameplayCamera)
+        public void Configure(StacklineClassicController newController, Camera gameplayCamera, bool useXrWorldSpace = false)
         {
             controller = newController;
+            xrWorldSpace = useXrWorldSpace;
+            uiCamera = gameplayCamera;
             language = StacklineLocalization.FromCode(StacklineProfileStore.LoadLanguageCode());
             EnsureCanvas(gameplayCamera);
             BuildIfNeeded();
             RefreshPersistentState();
+        }
+
+        private void Start()
+        {
+            // Attach after the tracked camera is active. As a child, the HUD also receives
+            // PICO's late/before-render HMD pose updates instead of only following its startup pose.
+            if (xrWorldSpace)
+                AttachHeadLockedCanvas(uiCamera);
         }
 
         public void ShowMenu(int displayScore, int best, int gems, int lives, int stars, bool isNewRecord, bool hasCompletedRun)
@@ -223,14 +237,69 @@ namespace Wukong.StacklineClassic
             }
 
             canvas.worldCamera = gameplayCamera;
-            canvas.renderMode = RenderMode.ScreenSpaceCamera;
-            canvas.planeDistance = 0.5f;
+            if (xrWorldSpace)
+                ConfigureWorldSpaceCanvas(gameplayCamera);
+            else
+            {
+                canvas.renderMode = RenderMode.ScreenSpaceCamera;
+                canvas.planeDistance = 0.5f;
+            }
             CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(720f, 1560f);
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
             scaler.referencePixelsPerUnit = 100f;
+        }
+
+        private void ConfigureWorldSpaceCanvas(Camera gameplayCamera)
+        {
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = gameplayCamera;
+            canvas.planeDistance = 1f;
+            canvas.overrideSorting = false;
+
+            RectTransform canvasRect = canvas.transform as RectTransform;
+            if (canvasRect != null)
+            {
+                // 3.2 m x 1.8 m at 2.6 m applies the requested 2x PICO HUD enlargement while leaving the
+                // scenery and gold table visible around it. The explicit rect prevents
+                // CanvasScaler's screen-space defaults from collapsing all anchors together.
+                canvasRect.sizeDelta = new Vector2(1280f, 720f);
+                // PICO revision: make the entire HUD twice as large in physical space.
+                canvasRect.localScale = Vector3.one * 0.0025f;
+            }
+
+            GraphicRaycaster screenRaycaster = canvas.GetComponent<GraphicRaycaster>();
+            if (screenRaycaster != null)
+                screenRaycaster.enabled = false;
+            TrackedDeviceGraphicRaycaster xrRaycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
+            if (xrRaycaster == null)
+                xrRaycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+
+            // The user explicitly requested a 180-degree Y flip. Keep the raycaster double-sided
+            // so a PICO controller ray can still activate menu Buttons on the visible face.
+            xrRaycaster.ignoreReversedGraphics = false;
+
+            AttachHeadLockedCanvas(gameplayCamera);
+        }
+
+        private void AttachHeadLockedCanvas(Camera gameplayCamera)
+        {
+            if (canvas == null || gameplayCamera == null)
+                return;
+
+            Transform canvasTransform = canvas.transform;
+            Transform hmdTransform = gameplayCamera.transform;
+            if (canvasTransform.parent != hmdTransform)
+                canvasTransform.SetParent(hmdTransform, false);
+
+            // Keep the panel in the HMD's local forward direction. The previous world-space
+            // orientation was LookRotation(-camera.forward, camera.up) followed by the user-
+            // requested 180-degree Y correction; together those resolve to the HMD's rotation.
+            // Identity here preserves that corrected visible face while making the UI head-locked.
+            canvasTransform.localPosition = Vector3.forward * HeadLockedDistanceMeters;
+            canvasTransform.localRotation = Quaternion.identity;
         }
 
         private void BuildIfNeeded()
@@ -841,6 +910,15 @@ namespace Wukong.StacklineClassic
         {
             if (safeAreaRoot == null || canvas == null)
                 return;
+            if (xrWorldSpace)
+            {
+                safeAreaRoot.anchorMin = Vector2.zero;
+                safeAreaRoot.anchorMax = Vector2.one;
+                safeAreaRoot.offsetMin = Vector2.zero;
+                safeAreaRoot.offsetMax = Vector2.zero;
+                ApplyResponsiveLayout(true);
+                return;
+            }
             Rect safe = Screen.safeArea;
             Rect pixel = canvas.pixelRect;
             if (!force && safe == previousSafeArea && pixel == previousPixelRect)

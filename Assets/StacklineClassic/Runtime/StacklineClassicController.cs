@@ -52,6 +52,8 @@ namespace Wukong.StacklineClassic
         [SerializeField] private StacklineHud hud;
         [SerializeField] private StacklineTapTarget tapTarget;
         [SerializeField] private GameObject goldBarPrefab;
+        [SerializeField, Tooltip("The PICO VR scene gives the HMD camera pose to the XR runtime. Desktop free-view must stay disabled.")]
+        private bool xrMode;
         [SerializeField, Min(0.4f)] private float baseSpeed = 2.5f;
         [SerializeField, Min(1f)] private float movementRange = 3.75f;
         [SerializeField, Range(0.01f, 0.3f)] private float perfectTolerance = 0.12f;
@@ -110,12 +112,28 @@ namespace Wukong.StacklineClassic
         public void Configure(Transform newArenaAnchor, Camera newCamera, StacklineHud newHud,
             StacklineTapTarget newTapTarget, GameObject newGoldBarPrefab)
         {
+            xrMode = false;
             arenaAnchor = newArenaAnchor;
             gameplayCamera = newCamera;
             hud = newHud;
             tapTarget = newTapTarget;
             goldBarPrefab = newGoldBarPrefab;
             CacheCameraPose();
+        }
+
+        /// <summary>
+        /// Routes camera ownership to the PICO tracked HMD. This deliberately does not move
+        /// or reparent the user-authored gameplay hierarchy.
+        /// </summary>
+        public void ConfigureVr(Transform newArenaAnchor, Camera hmdCamera, StacklineHud newHud,
+            StacklineTapTarget newTapTarget, GameObject newGoldBarPrefab)
+        {
+            xrMode = true;
+            arenaAnchor = newArenaAnchor;
+            gameplayCamera = hmdCamera;
+            hud = newHud;
+            tapTarget = newTapTarget;
+            goldBarPrefab = newGoldBarPrefab;
         }
 
         private void Awake()
@@ -132,9 +150,10 @@ namespace Wukong.StacklineClassic
             if (tapTarget != null)
                 tapTarget.Pressed += TryPlace;
             if (hud != null)
-                hud.Configure(this, gameplayCamera);
+                hud.Configure(this, gameplayCamera, xrMode);
 
-            StacklineFreeView.EnsureAttached(gameplayCamera);
+            if (!xrMode)
+                StacklineFreeView.EnsureAttached(gameplayCamera);
 
             profile = StacklineProfileStore.Load();
             gems = profile.gems;
@@ -149,8 +168,11 @@ namespace Wukong.StacklineClassic
             }
             blockPhysicsMaterial = CreatePhysicsMaterial();
             goldBarMaterial = StacklineGoldVisual.CreateTunedMaterial(goldBarPrefab);
-            CacheCameraPose();
-            SetInitialCameraDistance();
+            if (!xrMode)
+            {
+                CacheCameraPose();
+                SetInitialCameraDistance();
+            }
             ReturnToMenu();
         }
 
@@ -1126,8 +1148,8 @@ namespace Wukong.StacklineClassic
         /// </summary>
         private bool WasControllerPressedThisFrame()
         {
-            bool leftPressed = ReadControllerPrimaryPress(UnityEngine.XR.XRNode.LeftHand, false);
-            bool rightPressed = ReadControllerPrimaryPress(UnityEngine.XR.XRNode.RightHand, false);
+            bool leftPressed = !xrMode && ReadControllerPrimaryPress(UnityEngine.XR.XRNode.LeftHand, false);
+            bool rightPressed = ReadControllerPrimaryPress(UnityEngine.XR.XRNode.RightHand, xrMode);
             bool pressedThisFrame = (leftPressed && !leftControllerPressedLastFrame) ||
                 (rightPressed && !rightControllerPressedLastFrame);
             leftControllerPressedLastFrame = leftPressed;
