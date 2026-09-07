@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -31,6 +32,7 @@ namespace Wukong.StacklineClassic
 
         private StacklineClassicController controller;
         private Canvas canvas;
+        private Canvas ambientCanvas;
         private RectTransform safeAreaRoot;
         private GameObject menuGroup;
         private GameObject gameGroup;
@@ -58,6 +60,12 @@ namespace Wukong.StacklineClassic
         private Font uiFont;
         private bool ownsFont;
         private MenuPanel currentPanel;
+        private MenuPanel builtPanel;
+        private StacklineLanguage builtPanelLanguage;
+        private Color builtPanelAccent;
+        private string builtPanelState;
+        private bool panelRefreshPending;
+        private int lastPanelActionFrame = -1;
         private Rect previousSafeArea;
         private Rect previousPixelRect;
         private bool hasAppliedResponsiveLayout;
@@ -77,6 +85,9 @@ namespace Wukong.StacklineClassic
         private const float HeadLockedDistanceMeters = 2.6f;
         private bool xrWorldSpace;
         private Camera uiCamera;
+        private int displayedGems = -1;
+        private int displayedLives = -1;
+        private int displayedStars = -1;
 
         public bool CapturesPrimaryInput => currentPanel != MenuPanel.None || IsPointerOverMenuButton();
 
@@ -215,6 +226,14 @@ namespace Wukong.StacklineClassic
             TickTransientText(ref toastTimer, toastText, true);
         }
 
+        private void LateUpdate()
+        {
+            if (!panelRefreshPending)
+                return;
+            panelRefreshPending = false;
+            RefreshPanelContent();
+        }
+
         private void OnDestroy()
         {
             if (ownsFont && uiFont != null)
@@ -271,8 +290,13 @@ namespace Wukong.StacklineClassic
             }
 
             GraphicRaycaster screenRaycaster = canvas.GetComponent<GraphicRaycaster>();
-            if (screenRaycaster != null)
-                screenRaycaster.enabled = false;
+            if (screenRaycaster == null)
+                screenRaycaster = canvas.gameObject.AddComponent<GraphicRaycaster>();
+            // World-space UI still needs this raycaster for mouse/touch PointerEventData.
+            // TrackedDeviceGraphicRaycaster only handles tracked-device events. XRI's
+            // UIInputModule excludes screen-space hits while processing a controller ray,
+            // so both can stay enabled without delivering a second controller click.
+            screenRaycaster.enabled = true;
             TrackedDeviceGraphicRaycaster xrRaycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
             if (xrRaycaster == null)
                 xrRaycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
@@ -312,6 +336,10 @@ namespace Wukong.StacklineClassic
             safeAreaRoot = safeObject.GetComponent<RectTransform>();
 
             GameObject particleLayer = CreateRectObject(safeAreaRoot, "Ambient Particles", Vector2.zero, Vector2.one);
+            // Isolate the moving decoration from the static text/button canvas batches.
+            // Inherit sorting and the head-locked transform; decorative graphics have no raycaster.
+            ambientCanvas = particleLayer.AddComponent<Canvas>();
+            ambientCanvas.overrideSorting = false;
             BuildAmbientParticles(particleLayer.transform);
 
             GameObject resourceLayer = CreateRectObject(safeAreaRoot, "Resources", Vector2.zero, Vector2.one);
@@ -479,6 +507,7 @@ namespace Wukong.StacklineClassic
         public void ClosePanel()
         {
             currentPanel = MenuPanel.None;
+            panelRefreshPending = false;
             if (panelRoot != null)
                 panelRoot.SetActive(false);
             if (controller != null)
@@ -487,8 +516,33 @@ namespace Wukong.StacklineClassic
 
         private void RebuildCurrentPanel()
         {
-            if (panelContent == null || controller == null)
+            // Controller transactions and their button callbacks can both request a refresh.
+            // Apply their final state once, after this frame's input has been processed.
+            panelRefreshPending = currentPanel != MenuPanel.None;
+        }
+
+        private void InvokePanelAction(Action callback)
+        {
+            // A modal stays alive until LateUpdate refreshes it. Coalesce duplicate pointer
+            // releases in that frame so a purchase or toggle cannot execute twice.
+            if (callback == null || currentPanel == MenuPanel.None || lastPanelActionFrame == Time.frameCount)
                 return;
+            lastPanelActionFrame = Time.frameCount;
+            callback();
+        }
+
+        private void RefreshPanelContent()
+        {
+            if (panelContent == null || controller == null || currentPanel == MenuPanel.None)
+                return;
+
+            string state = GetPanelState();
+            if (builtPanel == currentPanel && builtPanelLanguage == language &&
+                builtPanelAccent.Equals(accentColor) && builtPanelState == state)
+            {
+                ResetPanelScroll();
+                return;
+            }
 
             for (int index = panelContent.childCount - 1; index >= 0; index--)
             {
@@ -521,12 +575,58 @@ namespace Wukong.StacklineClassic
                     break;
             }
 
+            builtPanel = currentPanel;
+            builtPanelLanguage = language;
+            builtPanelAccent = accentColor;
+            builtPanelState = state;
             Canvas.ForceUpdateCanvases();
+            ResetPanelScroll();
+        }
+
+        private void ResetPanelScroll()
+        {
             if (panelScroll != null)
             {
                 panelScroll.StopMovement();
                 panelScroll.verticalNormalizedPosition = 1f;
             }
+        }
+
+        private string GetPanelState()
+        {
+            // Only capture data displayed by the open panel. This runs on explicit refreshes,
+            // never every frame, and lets an unchanged panel survive close/reopen intact.
+            StringBuilder state = new StringBuilder(64);
+            switch (currentPanel)
+            {
+                case MenuPanel.Settings:
+                    state.Append(controller.SoundEnabled).Append('|').Append(controller.HapticsEnabled);
+                    break;
+                case MenuPanel.Challenges:
+                    for (int index = 0; index < controller.ChallengeCount; index++)
+                        state.Append(controller.GetChallengeLabel(index)).Append('|')
+                            .Append(controller.IsChallengeClaimed(index)).Append('|')
+                            .Append(controller.CanClaimChallenge(index)).Append(';');
+                    break;
+                case MenuPanel.Themes:
+                    state.Append(controller.SelectedTheme).Append('|');
+                    for (int index = 0; index < controller.ThemeCount; index++)
+                        state.Append(controller.GetThemeName(index)).Append('|')
+                            .Append(controller.GetThemeCost(index)).Append('|')
+                            .Append(controller.IsThemeUnlocked(index)).Append(';');
+                    break;
+                case MenuPanel.Leaderboard:
+                    foreach (string line in controller.GetLeaderboardLines())
+                        state.Append(line).Append('\n');
+                    break;
+                case MenuPanel.AdBonus:
+                    state.Append(controller.AdFree).Append('|').Append(controller.DailyBonusClaimed);
+                    break;
+                case MenuPanel.LifeShop:
+                    state.Append(controller.Gems).Append('|').Append(controller.Lives);
+                    break;
+            }
+            return state.ToString();
         }
 
         private void BuildSettingsPanel()
@@ -591,11 +691,11 @@ namespace Wukong.StacklineClassic
                 GameObject swatch = CreatePanelSwatch(controller.GetThemePreviewColor(index), x, y);
                 Button button = swatch.AddComponent<Button>();
                 button.targetGraphic = swatch.GetComponent<Image>();
-                button.onClick.AddListener(() =>
+                button.onClick.AddListener(() => InvokePanelAction(() =>
                 {
                     ShowToast(controller.SelectOrUnlockTheme(captured));
                     RefreshPersistentState();
-                });
+                }));
                 string suffix;
                 if (controller.SelectedTheme == index)
                     suffix = "  " + L(StacklineText.Selected);
@@ -809,7 +909,7 @@ namespace Wukong.StacklineClassic
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             button.interactable = interactable;
-            button.onClick.AddListener(() => callback?.Invoke());
+            button.onClick.AddListener(() => InvokePanelAction(callback));
             CreatePointText(buttonObject.transform, "Label", label, 20, new Vector2(0.5f, 0.5f),
                 new Vector2(430f, height), TextAnchor.MiddleCenter, Color.white);
             return button;
@@ -834,7 +934,7 @@ namespace Wukong.StacklineClassic
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             button.interactable = !selected;
-            button.onClick.AddListener(() => callback?.Invoke());
+            button.onClick.AddListener(() => InvokePanelAction(callback));
             CreatePointText(buttonObject.transform, "Label", selected ? label + "  \u2713" : label, 19,
                 new Vector2(0.5f, 0.5f), new Vector2(210f, 72f), TextAnchor.MiddleCenter, Color.white);
             return button;
@@ -871,7 +971,8 @@ namespace Wukong.StacklineClassic
 
         private void UpdateAmbientParticles()
         {
-            if (safeAreaRoot == null)
+            if (safeAreaRoot == null || canvas == null || !canvas.isActiveAndEnabled ||
+                ambientCanvas == null || !ambientCanvas.isActiveAndEnabled)
                 return;
             Vector2 size = safeAreaRoot.rect.size;
             if (size.x <= 1f || size.y <= 1f)
@@ -893,9 +994,17 @@ namespace Wukong.StacklineClassic
 
         private void SetResources(int gems, int lives, int stars)
         {
-            gemText.text = Mathf.Max(0, gems).ToString();
-            lifeText.text = Mathf.Max(0, lives).ToString();
-            starText.text = Mathf.Max(0, stars).ToString();
+            SetResourceValue(gemText, Mathf.Max(0, gems), ref displayedGems);
+            SetResourceValue(lifeText, Mathf.Max(0, lives), ref displayedLives);
+            SetResourceValue(starText, Mathf.Max(0, stars), ref displayedStars);
+        }
+
+        private static void SetResourceValue(Text text, int value, ref int displayed)
+        {
+            if (text == null || displayed == value)
+                return;
+            displayed = value;
+            text.text = value.ToString();
         }
 
         private void SetOnly(GameObject visible)
@@ -912,10 +1021,14 @@ namespace Wukong.StacklineClassic
                 return;
             if (xrWorldSpace)
             {
-                safeAreaRoot.anchorMin = Vector2.zero;
-                safeAreaRoot.anchorMax = Vector2.one;
-                safeAreaRoot.offsetMin = Vector2.zero;
-                safeAreaRoot.offsetMax = Vector2.zero;
+                if (force || safeAreaRoot.anchorMin != Vector2.zero || safeAreaRoot.anchorMax != Vector2.one ||
+                    safeAreaRoot.offsetMin != Vector2.zero || safeAreaRoot.offsetMax != Vector2.zero)
+                {
+                    safeAreaRoot.anchorMin = Vector2.zero;
+                    safeAreaRoot.anchorMax = Vector2.one;
+                    safeAreaRoot.offsetMin = Vector2.zero;
+                    safeAreaRoot.offsetMax = Vector2.zero;
+                }
                 ApplyResponsiveLayout(true);
                 return;
             }

@@ -20,3 +20,4 @@ Packages/com.bytedance.pico.xr/
 *.jks
 *.p12
 no_coaster_*.log
+Packages/com.coplaydev.unity-mcp/

@@ -63,6 +63,7 @@ namespace Wukong.EditorTools
             DisableDesktopCameraAndListeners(vrScene, hmdCamera);
             ConfigureGameplay(vrScene, hmdCamera);
             ConfigureEventSystem(vrScene);
+            StacklinePicoBuildProfile.ApplyToGeneratedScene(vrScene, hmdCamera);
 
             EditorSceneManager.MarkSceneDirty(vrScene);
             EditorSceneManager.SaveScene(vrScene);
@@ -72,7 +73,7 @@ namespace Wukong.EditorTools
 
         private static void RecreateVrSceneFromCurrentSource()
         {
-            if (File.Exists(VrScenePath))
+            if (File.Exists(Path.GetFullPath(Path.Combine(Application.dataPath, "..", VrScenePath))))
             {
                 if (!AssetDatabase.DeleteAsset(VrScenePath))
                     throw new BuildFailedException("Could not refresh generated PICO scene: " + VrScenePath);
@@ -119,6 +120,8 @@ namespace Wukong.EditorTools
                 xrInput = eventSystem.gameObject.AddComponent<XRUIInputModule>();
             xrInput.activeInputMode = XRUIInputModule.ActiveInputMode.InputSystemActions;
             xrInput.enableXRInput = true;
+            xrInput.enableMouseInput = true;
+            xrInput.enableTouchInput = true;
             xrInput.enableBuiltinActionsAsFallback = true;
             EditorUtility.SetDirty(eventSystem);
             EditorUtility.SetDirty(xrInput);

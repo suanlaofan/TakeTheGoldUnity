@@ -5,7 +5,6 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.XR;
-using Random = UnityEngine.Random;
 
 namespace Wukong.StacklineClassic
 {
@@ -29,7 +28,6 @@ namespace Wukong.StacklineClassic
         // hairline clearance between successive boxes so neither the visual bevels nor the
         // colliders can read as interpenetrating when the stack gets tall.
         private const float StackContactClearance = 0.008f;
-        private const float FallingPieceLifetime = 4.5f;
         private const float InitialWidth = 3.1f;
         private const float InitialDepth = 3.1f;
         private const float MinimumExtent = 0.075f;
@@ -60,12 +58,11 @@ namespace Wukong.StacklineClassic
         [SerializeField, Min(0.1f)] private float cameraFollowSpeed = 4f;
 
         private readonly List<StackBlock> stack = new List<StackBlock>();
-        private readonly List<Rigidbody> fallingPieces = new List<Rigidbody>();
-        private readonly List<Material> runtimeMaterials = new List<Material>();
         private readonly List<GameObject> menuPreviewObjects = new List<GameObject>();
-        private readonly List<GameObject> transientEffects = new List<GameObject>();
         private PhysicsMaterial blockPhysicsMaterial;
         private Material goldBarMaterial;
+        private Mesh retainedGoldMesh;
+        private StacklineEffectPool effectPool;
         private GameState state;
         private StackBlock movingBlock;
         private bool moveOnX;
@@ -99,6 +96,14 @@ namespace Wukong.StacklineClassic
         public bool SoundEnabled => profile == null || profile.soundEnabled;
         public bool HapticsEnabled => profile == null || profile.hapticsEnabled;
         public bool DailyBonusClaimed => profile != null && profile.dailyBonusDay == DateTime.Now.ToString("yyyyMMdd");
+        public StacklineEffectPoolStats EffectPoolStats => effectPool != null ? effectPool.Stats : default;
+
+        public bool ValidateEffectPool(out string problem)
+        {
+            if (effectPool != null) return effectPool.Validate(out problem);
+            problem = "Effect pool is not initialized.";
+            return false;
+        }
 
         private sealed class StackBlock
         {
@@ -168,6 +173,13 @@ namespace Wukong.StacklineClassic
             }
             blockPhysicsMaterial = CreatePhysicsMaterial();
             goldBarMaterial = StacklineGoldVisual.CreateTunedMaterial(goldBarPrefab);
+            if (goldBarMaterial != null)
+                retainedGoldMesh = StacklineGoldVisual.AcquireIngotMesh();
+            else
+                goldBarMaterial = CreateMaterial(new Color(0.83f, 0.56f, 0.12f), true);
+            Color[] effectColors = new Color[ThemeCount];
+            for (int i = 0; i < effectColors.Length; i++) effectColors[i] = GetThemePreviewColor(i);
+            effectPool = new StacklineEffectPool(goldBarMaterial, retainedGoldMesh, effectColors, gameObject.layer);
             if (!xrMode)
             {
                 CacheCameraPose();
@@ -180,12 +192,17 @@ namespace Wukong.StacklineClassic
         {
             if (tapTarget != null)
                 tapTarget.Pressed -= TryPlace;
-            ClearRuntimeMaterials();
+            ClearRunObjects();
+            ClearMenuPreview();
+            effectPool?.Dispose();
+            effectPool = null;
+            if (retainedGoldMesh != null)
+                StacklineGoldVisual.ReleaseIngotMesh();
+            retainedGoldMesh = null;
             if (goldBarMaterial != null)
                 Destroy(goldBarMaterial);
             if (blockPhysicsMaterial != null)
                 Destroy(blockPhysicsMaterial);
-            ClearMenuPreview();
         }
 
         private void OnApplicationPause(bool paused)
@@ -194,13 +211,20 @@ namespace Wukong.StacklineClassic
                 SaveProfile();
         }
 
+        private void OnDisable()
+        {
+            // A disabled controller no longer ticks visual lifetimes. Return temporary
+            // effects immediately rather than leaving frozen detached objects in the scene.
+            effectPool?.Clear();
+        }
+
         private void Update()
         {
             if (state == GameState.Playing && movingBlock != null)
                 MoveBlock();
 
             // Do not overwrite the player's free camera transform while a run is active.
-            CleanupFallingPieces();
+            effectPool?.Tick(Time.deltaTime, arenaAnchor.position.y - 12f);
 
             // Always sample both input paths.  Besides making controller edges independent of
             // a simultaneous mouse/keyboard event, it keeps a held controller button from
@@ -442,7 +466,7 @@ namespace Wukong.StacklineClassic
                 float expansion = combo >= 3 ? Mathf.Min(0.06f, 0.012f + combo * 0.006f) : 0f;
                 placedSize.x = Mathf.Min(InitialWidth, placedSize.x + expansion);
                 placedSize.z = Mathf.Min(InitialDepth, placedSize.z + expansion);
-                CreatePerfectBurst(placedPosition, GetThemePreviewColor(SelectedTheme));
+                CreatePerfectBurst(placedPosition);
                 CreatePerfectOutline(placedPosition, placedSize);
                 hud?.ShowPerfect(combo);
             }
@@ -478,7 +502,7 @@ namespace Wukong.StacklineClassic
             // created.  That starts two colliders in the same space and can kick the cut piece
             // upward through the tower.  Resize first, then release the debris outboard.
             if (hasCutPiece)
-                CreateFallingPiece(cutPosition, cutSize, movingBlock.Renderer.sharedMaterial.color, offset);
+                CreateFallingPiece(cutPosition, cutSize, offset);
             stack.Add(movingBlock);
             bool isGolden = movingBlock.IsGolden;
             movingBlock = null;
@@ -563,7 +587,7 @@ namespace Wukong.StacklineClassic
                 Mathf.Min(InitialDepth, top.Size.z + 0.22f));
             ResizeBlock(top, top.Position, safeSize);
             combo = 0;
-            CreatePerfectBurst(top.Position, GetThemePreviewColor(SelectedTheme));
+            CreatePerfectBurst(top.Position);
             state = GameState.Resolving;
             StartCoroutine(SpawnAfterResolve());
         }
@@ -785,7 +809,7 @@ namespace Wukong.StacklineClassic
                 Renderer renderer = StacklineGoldVisual.Attach(preview, goldBarPrefab, goldBarMaterial,
                     gameObject.layer);
                 if (renderer == null)
-                    fallbackRenderer.sharedMaterial = CreateMaterial(new Color(0.83f, 0.56f, 0.12f), true);
+                    fallbackRenderer.sharedMaterial = goldBarMaterial;
                 preview.transform.localScale = new Vector3(width * taper, BlockHeight, width * taper);
                 menuPreviewObjects.Add(preview);
             }
@@ -814,7 +838,7 @@ namespace Wukong.StacklineClassic
                 gameObject.layer);
             if (renderer == null)
             {
-                fallbackRenderer.sharedMaterial = CreateMaterial(new Color(0.83f, 0.56f, 0.12f), true);
+                fallbackRenderer.sharedMaterial = goldBarMaterial;
                 // Keep StackBlock.Renderer valid for cut pieces when the optional GLB cannot be imported.
                 renderer = fallbackRenderer;
             }
@@ -844,135 +868,51 @@ namespace Wukong.StacklineClassic
             block.Object.transform.localScale = size;
         }
 
-        private void CreateFallingPiece(Vector3 position, Vector3 size, Color color, float offset)
+        private void CreateFallingPiece(Vector3 position, Vector3 size, float offset)
         {
-            StackBlock piece = CreateBlock("Cut Piece", position, size, color, false);
             float side = Mathf.Sign(offset);
             if (Mathf.Approximately(side, 0f))
                 side = moveDirection == 0 ? 1f : Mathf.Sign(moveDirection);
 
             // Start the trimmed piece just beyond the supporting footprint and give it a clear
-            // sideways/downward impulse.  Its collider is disabled below, so it cannot climb
+            // sideways/downward impulse. The visual pool has no colliders, so it cannot climb
             // back onto the tower or intercept later placements while it is visible falling.
             Vector3 outward = moveOnX ? new Vector3(side, 0f, 0f) : new Vector3(0f, 0f, side);
             position += outward * (0.08f + (moveOnX ? size.x : size.z) * 0.08f);
             position += Vector3.down * 0.035f;
-            piece.Object.transform.localPosition = position;
-            piece.Position = position;
             Vector3 velocity = arenaAnchor.TransformVector(outward * 3.1f + Vector3.down * 0.40f);
-            MakeFalling(piece, velocity, false);
+            effectPool?.SpawnFragment(arenaAnchor, position, Quaternion.identity, size, velocity);
         }
 
-        private void MakeFalling(StackBlock block, Vector3 velocity, bool collideWithGameplay = false)
+        private void MakeFalling(StackBlock block, Vector3 velocity)
         {
             if (block == null || block.Object == null)
                 return;
 
-            Collider collider = block.Object.GetComponent<Collider>();
-            if (collider != null && !collideWithGameplay)
-                collider.enabled = false;
-
-            // Rigidbody simulation must not remain under the user's scaled/rotated game root.
-            // Detaching preserves the visible world pose while letting gravity act normally.
-            block.Object.transform.SetParent(null, true);
-
-            Rigidbody rigidbody = block.Object.AddComponent<Rigidbody>();
-            rigidbody.mass = Mathf.Max(0.1f, block.Size.x * block.Size.y * block.Size.z);
-            rigidbody.linearDamping = 0.01f;
-            rigidbody.angularDamping = 0.02f;
-            rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
-            rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-            rigidbody.useGravity = true;
-            rigidbody.linearVelocity = velocity;
-            rigidbody.angularVelocity = new Vector3(Random.Range(-3.5f, 3.5f), Random.Range(-2.5f, 2.5f),
-                Random.Range(-3.5f, 3.5f));
-            fallingPieces.Add(rigidbody);
-            Destroy(block.Object, FallingPieceLifetime);
+            Transform source = block.Object.transform;
+            effectPool?.SpawnFragment(source.parent, source.localPosition, source.localRotation,
+                source.localScale, velocity);
+            // Gameplay blocks are never adopted into the effect pool. In particular, no
+            // object with an outstanding delayed Destroy can later be reused by the pool.
+            block.Object.SetActive(false);
+            Destroy(block.Object);
         }
 
-        private void CreatePerfectBurst(Vector3 position, Color color)
+        private void CreatePerfectBurst(Vector3 position)
         {
             Vector3 worldPosition = arenaAnchor.TransformPoint(position + Vector3.up * (BlockHeight * 0.7f));
-            for (int index = 0; index < 16; index++)
-            {
-                GameObject spark = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                spark.name = "Perfect Spark";
-                spark.layer = gameObject.layer;
-                spark.transform.SetParent(transform, true);
-                spark.transform.position = worldPosition;
-                spark.transform.localScale = Vector3.one * 0.05f;
-                Collider sparkCollider = spark.GetComponent<Collider>();
-                Destroy(sparkCollider);
-                spark.GetComponent<Renderer>().sharedMaterial = CreateMaterial(color, true);
-                Rigidbody body = spark.AddComponent<Rigidbody>();
-                body.mass = 0.01f;
-                body.useGravity = true;
-                body.linearVelocity = new Vector3(Random.Range(-1.2f, 1.2f), Random.Range(0.7f, 2.1f), Random.Range(-1.2f, 1.2f));
-                fallingPieces.Add(body);
-            }
+            effectPool?.SpawnPerfect(transform, worldPosition, SelectedTheme);
         }
 
         private void CreatePerfectOutline(Vector3 position, Vector3 size)
         {
-            GameObject outline = new GameObject("Perfect Outline");
-            outline.layer = gameObject.layer;
-            outline.transform.SetParent(arenaAnchor, false);
-            outline.transform.SetLocalPositionAndRotation(
-                position + Vector3.up * (size.y * 0.5f + 0.045f), Quaternion.identity);
-            transientEffects.Add(outline);
-
-            float thickness = Mathf.Clamp(Mathf.Min(size.x, size.z) * 0.018f, 0.025f, 0.055f);
-            float height = 0.028f;
-            Material material = CreateMaterial(Color.white, true);
-            CreateOutlineEdge(outline.transform, "Front", new Vector3(0f, 0f, size.z * 0.5f),
-                new Vector3(size.x + thickness * 2f, height, thickness), material);
-            CreateOutlineEdge(outline.transform, "Back", new Vector3(0f, 0f, -size.z * 0.5f),
-                new Vector3(size.x + thickness * 2f, height, thickness), material);
-            CreateOutlineEdge(outline.transform, "Left", new Vector3(-size.x * 0.5f, 0f, 0f),
-                new Vector3(thickness, height, size.z + thickness * 2f), material);
-            CreateOutlineEdge(outline.transform, "Right", new Vector3(size.x * 0.5f, 0f, 0f),
-                new Vector3(thickness, height, size.z + thickness * 2f), material);
-            StartCoroutine(AnimatePerfectOutline(outline));
+            effectPool?.SpawnOutline(arenaAnchor, position, size);
         }
 
-        private void CreateOutlineEdge(Transform parent, string name, Vector3 localPosition, Vector3 localScale,
-            Material material)
-        {
-            GameObject edge = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            edge.name = name;
-            edge.layer = gameObject.layer;
-            edge.transform.SetParent(parent, false);
-            edge.transform.localPosition = localPosition;
-            edge.transform.localScale = localScale;
-            Collider collider = edge.GetComponent<Collider>();
-            if (collider != null)
-                Destroy(collider);
-            edge.GetComponent<Renderer>().sharedMaterial = material;
-        }
-
-        private IEnumerator AnimatePerfectOutline(GameObject outline)
-        {
-            const float duration = 0.55f;
-            float elapsed = 0f;
-            while (outline != null && elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float progress = Mathf.Clamp01(elapsed / duration);
-                float eased = 1f - Mathf.Pow(1f - progress, 3f);
-                outline.transform.localScale = Vector3.one * Mathf.Lerp(1f, 1.16f, eased);
-                yield return null;
-            }
-
-            transientEffects.Remove(outline);
-            if (outline != null)
-                Destroy(outline);
-        }
-
-        private Material CreateMaterial(Color color, bool golden)
+        private static Material CreateMaterial(Color color, bool golden)
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
             Material material = new Material(shader);
-            runtimeMaterials.Add(material);
             if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
             material.color = color;
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", golden ? 0.50f : 0.32f);
@@ -1079,24 +1019,6 @@ namespace Wukong.StacklineClassic
                 Quaternion.LookRotation(lookTarget - targetPosition, Vector3.up), 1f - Mathf.Exp(-cameraFollowSpeed * Time.deltaTime));
         }
 
-        private void CleanupFallingPieces()
-        {
-            for (int index = fallingPieces.Count - 1; index >= 0; index--)
-            {
-                Rigidbody body = fallingPieces[index];
-                if (body == null)
-                {
-                    fallingPieces.RemoveAt(index);
-                    continue;
-                }
-                if (body.transform.position.y < arenaAnchor.position.y - 12f)
-                {
-                    Destroy(body.gameObject);
-                    fallingPieces.RemoveAt(index);
-                }
-            }
-        }
-
         private void ClearRunObjects()
         {
             if (movingBlock != null && movingBlock.Object != null)
@@ -1108,29 +1030,7 @@ namespace Wukong.StacklineClassic
                     Destroy(block.Object);
             }
             stack.Clear();
-            foreach (Rigidbody body in fallingPieces)
-            {
-                if (body != null)
-                    Destroy(body.gameObject);
-            }
-            fallingPieces.Clear();
-            foreach (GameObject effect in transientEffects)
-            {
-                if (effect != null)
-                    Destroy(effect);
-            }
-            transientEffects.Clear();
-            ClearRuntimeMaterials();
-        }
-
-        private void ClearRuntimeMaterials()
-        {
-            foreach (Material material in runtimeMaterials)
-            {
-                if (material != null)
-                    Destroy(material);
-            }
-            runtimeMaterials.Clear();
+            effectPool?.Clear();
         }
 
         private static bool WasPressedThisFrame()

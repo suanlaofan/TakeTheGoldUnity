@@ -8,6 +8,23 @@ namespace Wukong.StacklineClassic
         private const int RingVertexCount = 8;
         private static readonly Color GoldBaseTint = new Color(0.72f, 0.58f, 0.30f, 1f);
         private static Mesh ingotMesh;
+        private static int meshOwners;
+
+        internal static Mesh AcquireIngotMesh()
+        {
+            Mesh mesh = GetIngotMesh();
+            meshOwners++;
+            return mesh;
+        }
+
+        internal static void ReleaseIngotMesh()
+        {
+            if (meshOwners > 0) meshOwners--;
+            if (meshOwners != 0 || ingotMesh == null) return;
+            if (Application.isPlaying) Object.Destroy(ingotMesh);
+            else Object.DestroyImmediate(ingotMesh);
+            ingotMesh = null;
+        }
 
         public static Material CreateTunedMaterial(GameObject goldBarPrefab)
         {

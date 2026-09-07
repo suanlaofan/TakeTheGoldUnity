@@ -36,6 +36,8 @@ namespace Wukong.StacklineClassic
         private const string LegacyBestScoreKey = "Wukong.StacklineClassic.Best";
         private const string LegacyGemsKey = "Wukong.StacklineClassic.Gems";
         private const string LegacyLivesKey = "Wukong.StacklineClassic.Lives";
+        private static StacklineProfileData lastSavedProfile;
+        private static string lastSavedJson;
 
         public static StacklineProfileData Load()
         {
@@ -75,9 +77,23 @@ namespace Wukong.StacklineClassic
             string persistedLanguage = PlayerPrefs.GetString(LanguageKey, string.Empty);
             if (!string.IsNullOrEmpty(persistedLanguage))
                 normalized.language = StacklineLocalization.NormalizeCode(persistedLanguage);
-            PlayerPrefs.SetString(LanguageKey, normalized.language);
-            PlayerPrefs.SetString(ProfileKey, JsonUtility.ToJson(normalized));
-            PlayerPrefs.Save();
+            string persistedJson = PlayerPrefs.GetString(ProfileKey, string.Empty);
+            if (persistedLanguage == normalized.language && persistedJson == lastSavedJson &&
+                ProfilesMatch(normalized, lastSavedProfile))
+                return;
+
+            string json = JsonUtility.ToJson(normalized);
+            bool languageChanged = persistedLanguage != normalized.language;
+            bool profileChanged = persistedJson != json;
+            if (languageChanged)
+                PlayerPrefs.SetString(LanguageKey, normalized.language);
+            if (profileChanged)
+                PlayerPrefs.SetString(ProfileKey, json);
+            // Real score/resource/settings changes still flush synchronously. No pending
+            // transaction is left behind for pause, quit, or an unexpected process stop.
+            if (languageChanged || profileChanged)
+                PlayerPrefs.Save();
+            RememberSavedProfile(normalized, json);
         }
 
         public static string LoadLanguageCode()
@@ -105,24 +121,91 @@ namespace Wukong.StacklineClassic
         public static void SaveLanguageCode(string languageCode)
         {
             string normalizedCode = StacklineLocalization.NormalizeCode(languageCode);
-            PlayerPrefs.SetString(LanguageKey, normalizedCode);
+            string persistedLanguage = PlayerPrefs.GetString(LanguageKey, string.Empty);
+            string persistedJson = PlayerPrefs.GetString(ProfileKey, string.Empty);
+            if (persistedLanguage == normalizedCode && persistedJson == lastSavedJson &&
+                lastSavedProfile != null && lastSavedProfile.language == normalizedCode)
+                return;
+
+            bool changed = persistedLanguage != normalizedCode;
+            if (changed)
+                PlayerPrefs.SetString(LanguageKey, normalizedCode);
 
             if (PlayerPrefs.HasKey(ProfileKey))
             {
                 try
                 {
-                    StacklineProfileData profile = JsonUtility.FromJson<StacklineProfileData>(
-                        PlayerPrefs.GetString(ProfileKey, string.Empty));
+                    StacklineProfileData profile = JsonUtility.FromJson<StacklineProfileData>(persistedJson);
                     profile = Normalize(profile);
                     profile.language = normalizedCode;
-                    PlayerPrefs.SetString(ProfileKey, JsonUtility.ToJson(profile));
+                    string json = JsonUtility.ToJson(profile);
+                    if (json != persistedJson)
+                    {
+                        PlayerPrefs.SetString(ProfileKey, json);
+                        changed = true;
+                    }
+                    RememberSavedProfile(profile, json);
                 }
                 catch (ArgumentException)
                 {
                     // Keep the dedicated language preference even if the main profile is corrupt.
+                    lastSavedProfile = null;
+                    lastSavedJson = null;
                 }
             }
-            PlayerPrefs.Save();
+            else
+            {
+                lastSavedProfile = null;
+                lastSavedJson = null;
+            }
+            if (changed)
+                PlayerPrefs.Save();
+        }
+
+        private static bool ProfilesMatch(StacklineProfileData current, StacklineProfileData saved)
+        {
+            // Compare every persisted field, including list contents: the controller mutates
+            // a single profile in place, so reference equality cannot detect new rewards.
+            if (saved == null || current.schemaVersion != saved.schemaVersion ||
+                current.bestScore != saved.bestScore || current.gems != saved.gems ||
+                current.lives != saved.lives || current.stars != saved.stars ||
+                current.selectedTheme != saved.selectedTheme || current.unlockedThemeMask != saved.unlockedThemeMask ||
+                current.adFree != saved.adFree || current.doubleGems != saved.doubleGems ||
+                current.soundEnabled != saved.soundEnabled || current.hapticsEnabled != saved.hapticsEnabled ||
+                current.language != saved.language || current.challengeClaims != saved.challengeClaims ||
+                current.runCount != saved.runCount || current.dailyBonusDay != saved.dailyBonusDay ||
+                current.recentScores.Count != saved.recentScores.Count)
+                return false;
+            for (int index = 0; index < current.recentScores.Count; index++)
+                if (current.recentScores[index] != saved.recentScores[index])
+                    return false;
+            return true;
+        }
+
+        private static void RememberSavedProfile(StacklineProfileData profile, string json)
+        {
+            if (lastSavedProfile == null)
+                lastSavedProfile = new StacklineProfileData();
+            // Keep this copy/comparison pair aligned with StacklineProfileData when adding
+            // schema fields. The snapshot must never share the caller's mutable score list.
+            lastSavedProfile.schemaVersion = profile.schemaVersion;
+            lastSavedProfile.bestScore = profile.bestScore;
+            lastSavedProfile.gems = profile.gems;
+            lastSavedProfile.lives = profile.lives;
+            lastSavedProfile.stars = profile.stars;
+            lastSavedProfile.selectedTheme = profile.selectedTheme;
+            lastSavedProfile.unlockedThemeMask = profile.unlockedThemeMask;
+            lastSavedProfile.adFree = profile.adFree;
+            lastSavedProfile.doubleGems = profile.doubleGems;
+            lastSavedProfile.soundEnabled = profile.soundEnabled;
+            lastSavedProfile.hapticsEnabled = profile.hapticsEnabled;
+            lastSavedProfile.language = profile.language;
+            lastSavedProfile.challengeClaims = profile.challengeClaims;
+            lastSavedProfile.runCount = profile.runCount;
+            lastSavedProfile.dailyBonusDay = profile.dailyBonusDay;
+            lastSavedProfile.recentScores.Clear();
+            lastSavedProfile.recentScores.AddRange(profile.recentScores);
+            lastSavedJson = json;
         }
 
         public static StacklineProfileData Normalize(StacklineProfileData profile)

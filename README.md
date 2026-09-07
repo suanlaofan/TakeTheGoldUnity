@@ -22,7 +22,20 @@ PICO XR SDK 不随本仓库分发。请从 PICO 官方渠道取得与本项目�
 1. 用 Unity Hub 打开本工程，并选择 Android 平台。
 2. 安装上述 PICO XR SDK 与项目中已提交的 PICO Interaction Demo sample。
 3. 在 Unity 选择 `Tools > Stackline Classic > Build PICO APK`。
-4. 输出 APK 为 `outputs/pico/TakeTheGold.apk`（故意不提交到 Git）。
+4. 正式版输出为 `outputs/pico/TakeTheGold-performance-fix2.apk`；选择 `Build PICO Diagnostics APK` 可生成开启 Development 与 Frame Timing Stats 的诊断版 `outputs/pico/TakeTheGold-performance-fix2-diagnostics.apk`。APK 不提交到 Git，通过 GitHub Releases 分发。
+
+构建前退出 Play Mode，并等待 Android 平台切换和脚本编译完成。构建器会绑定 `Assets/StacklineClassic/Art/UI/StacklineLauncherIcon.png` 中的金条游戏图标，同时配置 Android 普通图标和自适应图标。当前发布版本为 `1.1.1-performance.2`，versionCode 为 `3`。
+
+## 性能优化与结束页修复（2026-09-07）
+
+- 生成的 PICO 场景使用独立 Forward URP 配置：渲染比例 0.9、关闭 SSAO/HDR/额外深度与不透明纹理、缩减阴影距离与实时阴影光源。保留原始环境场景。
+- 金条火花、碎片与轮廓使用有上限的对象池，共享网格和材质，减少运行中的实例创建、销毁及物理开销。
+- 装饰动画使用独立 Canvas；资源文字、菜单内容及存档在状态变化时更新，减少重复刷新。
+- 修复 World Space UI 关闭普通 GraphicRaycaster 后，结束页无法接受鼠标/触摸射线的问题；同时保留 XR 控制器射线，菜单操作按帧防止重复执行。
+
+Unity Editor 已完成鼠标与 tracked 输入模型的结束页回归（8 个场景、69 个断言），以及结束后设置/重新开始流程检查；游戏循环压力检查完成 20 次重新开始、100 次 Perfect、983 个断言。正式版与诊断版 Android ARM64 APK 均构建成功，签名及包内图标已核验。
+
+上述为本机 Editor 与构建验证；PICO 真机手柄操作和帧率尚未实测，不能据此宣称已达到目标帧率。进入 `StacklineVR` 的 Play Mode 后，可通过 `Tools > Stackline Classic > Performance > Start Play Checks` 重跑游戏循环检查。
 
 ## 验收操作
 
@@ -31,6 +44,8 @@ PICO XR SDK 不随本仓库分发。请从 PICO 官方渠道取得与本项目�
 1. 启动游戏后确认 HUD 始终随头部移动与转向。
 2. 用右手射线指向 UI，按右手 Trigger 开始。
 3. 游戏中按右手 Trigger 放置移动中的金条。
+4. 失败后用射线操作复活与结束按钮，结束后打开设置并重新开始；确认每次点击只执行一次，重新开始后高度归零。
+5. 在相同设备和测试场景下对比旧版与新版帧率；性能采样使用诊断版，最终体验复测使用正式版。
 
 ## 仓库内容与忽略项
 
