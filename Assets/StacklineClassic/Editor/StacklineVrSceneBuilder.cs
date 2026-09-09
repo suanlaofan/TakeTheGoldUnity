@@ -62,6 +62,7 @@ namespace Wukong.EditorTools
 
             DisableDesktopCameraAndListeners(vrScene, hmdCamera);
             ConfigureGameplay(vrScene, hmdCamera);
+            ConfigureWorldUiAnchor(vrScene, desktopPosition, desktopForward);
             ConfigureEventSystem(vrScene);
             StacklinePicoBuildProfile.ApplyToGeneratedScene(vrScene, hmdCamera);
 
@@ -97,6 +98,21 @@ namespace Wukong.EditorTools
 
             controller.ConfigureVr(arenaAnchor, hmdCamera, hud, tapTarget, goldBar);
             EditorUtility.SetDirty(controller);
+        }
+
+        private static void ConfigureWorldUiAnchor(Scene scene, Vector3 eyePosition, Vector3 forward)
+        {
+            // Root-level anchor keeps all HUD states fixed in the authored scene even when
+            // the XR Origin is recentered or the player translates/rotates their head.
+            GameObject anchor = new GameObject("Stackline World UI Anchor");
+            SceneManager.MoveGameObjectToScene(anchor, scene);
+            anchor.transform.SetPositionAndRotation(eyePosition + forward * 2.6f,
+                Quaternion.LookRotation(forward, Vector3.up));
+            anchor.transform.localScale = Vector3.one;
+            GameObject root = FindRoot("Stackline Classic Game", scene);
+            StacklineHud hud = root.GetComponentInChildren<StacklineHud>(true);
+            hud.ConfigureWorldUiAnchor(anchor.transform);
+            EditorUtility.SetDirty(hud);
         }
 
         private static void ConfigureEventSystem(Scene scene)

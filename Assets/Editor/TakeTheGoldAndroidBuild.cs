@@ -39,7 +39,7 @@ public static class TakeTheGoldAndroidBuild
         var pipeline = StacklinePicoBuildProfile.EnsureAssets();
         string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
         string outputPath = Path.Combine(projectRoot, "outputs", "pico",
-            diagnostics ? "TakeTheGold-performance-fix2-diagnostics.apk" : "TakeTheGold-performance-fix2.apk");
+            diagnostics ? "TakeTheGold-audio-fx-diagnostics.apk" : "TakeTheGold-audio-fx.apk");
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
 
         var options = new BuildPlayerOptions
@@ -55,8 +55,8 @@ public static class TakeTheGoldAndroidBuild
         bool previousTiming = PlayerSettings.enableFrameTimingStats;
         try
         {
-            PlayerSettings.bundleVersion = "1.1.1-performance.2";
-            PlayerSettings.Android.bundleVersionCode = Math.Max(3, previousCode + 1);
+            PlayerSettings.bundleVersion = "1.2.1-audio-fx.1";
+            PlayerSettings.Android.bundleVersionCode = Math.Max(6, previousCode + 1);
             PlayerSettings.enableFrameTimingStats = diagnostics;
             using (new StacklinePicoBuildProfile.BuildPipelineScope(pipeline))
             {
@@ -82,7 +82,7 @@ public static class TakeTheGoldAndroidBuild
                 };
                 Directory.CreateDirectory(StacklinePicoBuildProfile.ReportDirectory);
                 File.WriteAllText(Path.Combine(StacklinePicoBuildProfile.ReportDirectory,
-                    diagnostics ? "fix2-diagnostics-build.json" : "fix2-release-build.json"), JsonUtility.ToJson(manifest, true));
+                    diagnostics ? "audio-fx-diagnostics-build.json" : "audio-fx-release-build.json"), JsonUtility.ToJson(manifest, true));
                 Debug.Log("STACKLINE_PERFORMANCE_BUILD_PASS sha256=" + hash);
             }
         }

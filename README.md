@@ -5,7 +5,7 @@
 ## PICO VR 版本
 
 - PICO tracked HMD 相机负责头部姿态；不会由桌面自由相机覆盖追踪。
-- HUD 为可交互的 World Space **head-locked UI**：跟随头部的 6DoF 姿态，距视点 2.6m；保留 Y 轴 180° 方向修正与 2 倍物理尺寸。
+- 开始页、局内 HUD、结束页、续命页和弹窗均为固定在场景中的 World Space UI；使用独立世界锚点，移动或转头时位置不跟随头显。左侧面板已左移以减少遮挡。
 - 右手控制器射线可操作 UI；右手 Trigger 在菜单开始游戏、游戏中放置金条。
 - 原始 `EnvironmentScene` 保留为美术与 Terrain 的权威场景；每次 PICO 构建都生成独立的 `StacklineVR` 场景，不改写手调环境。
 
@@ -22,9 +22,15 @@ PICO XR SDK 不随本仓库分发。请从 PICO 官方渠道取得与本项目�
 1. 用 Unity Hub 打开本工程，并选择 Android 平台。
 2. 安装上述 PICO XR SDK 与项目中已提交的 PICO Interaction Demo sample。
 3. 在 Unity 选择 `Tools > Stackline Classic > Build PICO APK`。
-4. 正式版输出为 `outputs/pico/TakeTheGold-performance-fix2.apk`；选择 `Build PICO Diagnostics APK` 可生成开启 Development 与 Frame Timing Stats 的诊断版 `outputs/pico/TakeTheGold-performance-fix2-diagnostics.apk`。APK 不提交到 Git，通过 GitHub Releases 分发。
+4. 正式版输出为 `outputs/pico/TakeTheGold-audio-fx.apk`；选择 `Build PICO Diagnostics APK` 可生成开启 Development 与 Frame Timing Stats 的诊断版 `outputs/pico/TakeTheGold-audio-fx-diagnostics.apk`。APK 不提交到 Git，通过 GitHub Releases 分发。
 
-构建前退出 Play Mode，并等待 Android 平台切换和脚本编译完成。构建器会绑定 `Assets/StacklineClassic/Art/UI/StacklineLauncherIcon.png` 中的金条游戏图标，同时配置 Android 普通图标和自适应图标。当前发布版本为 `1.1.1-performance.2`，versionCode 为 `3`。
+构建前退出 Play Mode，并等待 Android 平台切换和脚本编译完成。构建器会绑定 `Assets/StacklineClassic/Art/UI/StacklineLauncherIcon.png` 中的金条游戏图标，同时配置 Android 普通图标和自适应图标。当前发布版本为 `1.2.1-audio-fx.1`，versionCode 为 `6`。
+
+## 世界空间 UI 与音效（2026-09-09）
+
+- 开始、局内、结算与续命界面使用金色寺庙风格面板；装饰图形不拦截按钮输入。
+- 添加落块、Perfect、切落、失败和救援短音效；静音开关同步控制音源，Perfect 不再误播切落音。音频由 Unity 程序生成，无额外在线下载。
+- 保留有界的金色火花、轮廓与碎片特效池；沿用游戏金条启动图标。
 
 ## 性能优化与结束页修复（2026-09-07）
 
@@ -41,7 +47,7 @@ Unity Editor 已完成鼠标与 tracked 输入模型的结束页回归（8 个�
 
 在 PICO 模拟器或真机中：
 
-1. 启动游戏后确认 HUD 始终随头部移动与转向。
+1. 启动游戏后移动和转动头部，确认所有界面保持在场景中的固定位置。
 2. 用右手射线指向 UI，按右手 Trigger 开始。
 3. 游戏中按右手 Trigger 放置移动中的金条。
 4. 失败后用射线操作复活与结束按钮，结束后打开设置并重新开始；确认每次点击只执行一次，重新开始后高度归零。

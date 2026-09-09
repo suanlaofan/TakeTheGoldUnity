@@ -51,6 +51,17 @@ namespace Wukong.StacklineClassic
         OneLife,
         ThreeLives,
         LifeDescription,
+        TempleChallenge,
+        RunComplete,
+        RunHeight,
+        BestHeight,
+        CurrentHeight,
+        StartRun,
+        PlayAgain,
+        StackHigher,
+        PrecisionReward,
+        TryAgain,
+        PlacementHint,
     }
 
     public static class StacklineLocalization
@@ -81,6 +92,17 @@ namespace Wukong.StacklineClassic
             switch (text)
             {
                 case StacklineText.GameTitle: return Pick(chinese, "\u53d6\u8d70\u9ec4\u91d1", "TAKE THE GOLD");
+                case StacklineText.TempleChallenge: return Pick(chinese, "雪境金阁 · 叠高挑战", "THE GOLDEN TEMPLE");
+                case StacklineText.RunComplete: return Pick(chinese, "本局结算", "RUN COMPLETE");
+                case StacklineText.RunHeight: return Pick(chinese, "本局层数", "FLOORS STACKED");
+                case StacklineText.BestHeight: return Pick(chinese, "最高纪录", "PERSONAL BEST");
+                case StacklineText.CurrentHeight: return Pick(chinese, "当前层数", "FLOORS STACKED");
+                case StacklineText.StartRun: return Pick(chinese, "开始叠金", "START STACKING");
+                case StacklineText.PlayAgain: return Pick(chinese, "再来一局", "PLAY AGAIN");
+                case StacklineText.StackHigher: return Pick(chinese, "一层一层，登上金顶", "ONE INGOT CLOSER TO THE TOP");
+                case StacklineText.PrecisionReward: return Pick(chinese, "完美对齐 · 连击生金", "ALIGN. STACK. STRIKE GOLD.");
+                case StacklineText.TryAgain: return Pick(chinese, "再进一步，超越自己", "THE NEXT RECORD IS YOURS");
+                case StacklineText.PlacementHint: return Pick(chinese, "看准时机，点击或按右扳机落下金砖", "Click or press the right trigger to drop an ingot.");
                 case StacklineText.TapToStart: return Pick(chinese, "\u70b9\u51fb\u53d6\u8d70\u9ec4\u91d1", "TAP TO TAKE GOLD");
                 case StacklineText.NewRecord: return Pick(chinese, "\u65b0\u7eaa\u5f55", "NEW RECORD");
                 case StacklineText.Best: return Pick(chinese, "\u6700\u4f73", "BEST");

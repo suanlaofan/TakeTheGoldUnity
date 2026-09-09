@@ -63,6 +63,7 @@ namespace Wukong.StacklineClassic
         private Material goldBarMaterial;
         private Mesh retainedGoldMesh;
         private StacklineEffectPool effectPool;
+        private StacklineAudio audioFeedback;
         private GameState state;
         private StackBlock movingBlock;
         private bool moveOnX;
@@ -180,6 +181,9 @@ namespace Wukong.StacklineClassic
             Color[] effectColors = new Color[ThemeCount];
             for (int i = 0; i < effectColors.Length; i++) effectColors[i] = GetThemePreviewColor(i);
             effectPool = new StacklineEffectPool(goldBarMaterial, retainedGoldMesh, effectColors, gameObject.layer);
+            audioFeedback = gameObject.AddComponent<StacklineAudio>();
+            audioFeedback.Configure(xrMode);
+            audioFeedback.SetMuted(!SoundEnabled);
             if (!xrMode)
             {
                 CacheCameraPose();
@@ -469,6 +473,7 @@ namespace Wukong.StacklineClassic
                 CreatePerfectBurst(placedPosition);
                 CreatePerfectOutline(placedPosition, placedSize);
                 hud?.ShowPerfect(combo);
+                audioFeedback?.PlayPerfect();
             }
             else
             {
@@ -502,7 +507,10 @@ namespace Wukong.StacklineClassic
             // created.  That starts two colliders in the same space and can kick the cut piece
             // upward through the tower.  Resize first, then release the debris outboard.
             if (hasCutPiece)
+            {
                 CreateFallingPiece(cutPosition, cutSize, offset);
+                audioFeedback?.PlayCut();
+            }
             stack.Add(movingBlock);
             bool isGolden = movingBlock.IsGolden;
             movingBlock = null;
@@ -517,6 +525,8 @@ namespace Wukong.StacklineClassic
             UpdateCameraTarget(placedPosition.y + 1.3f);
             hud?.ShowPlaying(height, gems, lives, stars);
             StartCoroutine(SpawnAfterResolve());
+            if (perfect == false)
+                audioFeedback?.PlayPlace();
         }
 
         private IEnumerator SpawnAfterResolve()
@@ -540,6 +550,7 @@ namespace Wukong.StacklineClassic
             Vector3 velocity = arenaAnchor.TransformVector(localVelocity);
             MakeFalling(failed, velocity);
             state = GameState.Failing;
+            audioFeedback?.PlayFail();
             if (tapTarget != null)
                 tapTarget.SetInteractable(false);
             StartCoroutine(OfferReviveAfterFall());
@@ -563,6 +574,7 @@ namespace Wukong.StacklineClassic
         private IEnumerator RescueCountdown()
         {
             state = GameState.Rescue;
+            audioFeedback?.PlayRescue();
             for (int remaining = 3; remaining > 0; remaining--)
             {
                 hud?.ShowRescue(remaining);
@@ -603,6 +615,7 @@ namespace Wukong.StacklineClassic
         {
             EnsureProfile();
             profile.soundEnabled = !profile.soundEnabled;
+            audioFeedback?.SetMuted(!profile.soundEnabled);
             SaveProfile();
         }
 

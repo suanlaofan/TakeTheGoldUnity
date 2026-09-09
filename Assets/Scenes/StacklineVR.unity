@@ -208,72 +208,6 @@ MonoBehaviour:
   m_VerticalAxis: Vertical
   m_SubmitButton: Submit
   m_CancelButton: Cancel
---- !u!1001 &8787725
-PrefabInstance:
-  m_ObjectHideFlags: 0
-  serializedVersion: 2
-  m_Modification:
-    serializedVersion: 3
-    m_TransformParent: {fileID: 0}
-    m_Modifications:
-    - target: {fileID: 1372303436071772693, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_HDR
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4782014877365497464, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_Name
-      value: '[PICO] Stackline XR Origin'
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalPosition.x
-      value: 50.4694
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalPosition.y
-      value: 15.434788
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalPosition.z
-      value: -6.3025136
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.78771794
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: -0.6160362
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-      propertyPath: m_LocalEulerAnglesHint.z
-      value: 0
-      objectReference: {fileID: 0}
-    m_RemovedComponents: []
-    m_RemovedGameObjects: []
-    m_AddedGameObjects: []
-    m_AddedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
---- !u!20 &8787726 stripped
-Camera:
-  m_CorrespondingSourceObject: {fileID: 1372303436071772693, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
-  m_PrefabInstance: {fileID: 8787725}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &11702058
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2469,6 +2403,72 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: e233800aa17e3487bac058ea3a7287be, type: 3}
+--- !u!1001 &401903067
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1372303436071772693, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_HDR
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4782014877365497464, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_Name
+      value: '[PICO] Stackline XR Origin'
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 50.4694
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 15.434788
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -6.3025136
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.78771794
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.6160362
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4818802934825214055, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+--- !u!20 &401903068 stripped
+Camera:
+  m_CorrespondingSourceObject: {fileID: 1372303436071772693, guid: 749eccc0e0324d647962d8d9f4c2fd68, type: 3}
+  m_PrefabInstance: {fileID: 401903067}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &409408617
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2567,6 +2567,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 62e5852c297d549aabe56777918303ee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wukong.StacklineClassic.StacklineHud
+  worldUiAnchor: {fileID: 1272575719}
 --- !u!4 &411849928
 Transform:
   m_ObjectHideFlags: 0
@@ -5665,51 +5666,6 @@ Light:
   m_LightUnit: 1
   m_LuxAtDistance: 1
   m_EnableSpotReflector: 1
---- !u!1 &877528770
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 877528772}
-  - component: {fileID: 877528771}
-  m_Layer: 0
-  m_Name: Stackline PICO Performance
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &877528771
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 877528770}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 33245a85babec401e9714478aaee97af, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Wukong.StacklineClassic.StacklinePicoRenderSettings
-  pipeline: {fileID: 11400000, guid: 595b2f68c829147569a62e74dee2e78c, type: 2}
---- !u!4 &877528772
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 877528770}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &892400657
 GameObject:
   m_ObjectHideFlags: 0
@@ -7490,6 +7446,37 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 176a0870d6ef84050b9043c942b2e6bd, type: 3}
+--- !u!1 &1272575718
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1272575719}
+  m_Layer: 0
+  m_Name: Stackline World UI Anchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1272575719
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1272575718}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: -0.6160362, z: -0, w: 0.78771794}
+  m_LocalPosition: {x: 47.946033, y: 17.034788, z: -5.675916}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1284360343
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9184,7 +9171,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Wukong.StacklineClassic.StacklineClassicController
   arenaAnchor: {fileID: 1215681141}
-  gameplayCamera: {fileID: 8787726}
+  gameplayCamera: {fileID: 401903068}
   hud: {fileID: 411849927}
   tapTarget: {fileID: 892400658}
   goldBarPrefab: {fileID: -5153441580669239914, guid: cb8dcc42768634171a2bad26fd3917f3, type: 3}
@@ -10586,6 +10573,51 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 63e4eee9cd9cb44978bda60220dd6867, type: 3}
+--- !u!1 &1727015093
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1727015095}
+  - component: {fileID: 1727015094}
+  m_Layer: 0
+  m_Name: Stackline PICO Performance
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1727015094
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1727015093}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 33245a85babec401e9714478aaee97af, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Wukong.StacklineClassic.StacklinePicoRenderSettings
+  pipeline: {fileID: 11400000, guid: 595b2f68c829147569a62e74dee2e78c, type: 2}
+--- !u!4 &1727015095
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1727015093}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1762555375
 GameObject:
   m_ObjectHideFlags: 0
@@ -12167,5 +12199,6 @@ SceneRoots:
   - {fileID: 255512907}
   - {fileID: 1346460267}
   - {fileID: 1509171323}
-  - {fileID: 8787725}
-  - {fileID: 877528772}
+  - {fileID: 401903067}
+  - {fileID: 1272575719}
+  - {fileID: 1727015095}

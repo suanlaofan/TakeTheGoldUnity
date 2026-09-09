@@ -45,6 +45,11 @@ namespace Wukong.StacklineClassic
         private Text menuTitleText;
         private Text menuScoreText;
         private Text menuStatusText;
+        private Text menuEyebrowText;
+        private Text menuScoreLabelText;
+        private Text menuBestText;
+        private Text menuHintText;
+        private Button beginButton;
         private Text gameScoreText;
         private Text gemText;
         private Text lifeText;
@@ -59,6 +64,13 @@ namespace Wukong.StacklineClassic
         private readonly List<AmbientParticle> ambientParticles = new List<AmbientParticle>();
         private Font uiFont;
         private bool ownsFont;
+        private Sprite templePanel;
+        private Sprite scorePlaque;
+        private Sprite roundedSurface;
+        private Texture2D roundedTexture;
+        private static readonly Color Ink = new Color(0.035f, 0.10f, 0.11f, 0.97f);
+        private static readonly Color PaleGold = new Color(1f, 0.86f, 0.55f, 1f);
+        private static readonly Color MutedGold = new Color(0.75f, 0.73f, 0.60f, 1f);
         private MenuPanel currentPanel;
         private MenuPanel builtPanel;
         private StacklineLanguage builtPanelLanguage;
@@ -82,9 +94,11 @@ namespace Wukong.StacklineClassic
         private float perfectTimer;
         private float toastTimer;
         private Color accentColor = new Color(0.93f, 0.68f, 0.20f, 1f);
-        private const float HeadLockedDistanceMeters = 2.6f;
+        private const float WorldUiDistanceMeters = 2.6f;
+        [SerializeField] private Transform worldUiAnchor;
+        private bool worldUiPlaced;
+        private bool ownsCanvas;
         private bool xrWorldSpace;
-        private Camera uiCamera;
         private int displayedGems = -1;
         private int displayedLives = -1;
         private int displayedStars = -1;
@@ -119,19 +133,15 @@ namespace Wukong.StacklineClassic
         {
             controller = newController;
             xrWorldSpace = useXrWorldSpace;
-            uiCamera = gameplayCamera;
             language = StacklineLocalization.FromCode(StacklineProfileStore.LoadLanguageCode());
             EnsureCanvas(gameplayCamera);
             BuildIfNeeded();
             RefreshPersistentState();
         }
 
-        private void Start()
+        public void ConfigureWorldUiAnchor(Transform anchor)
         {
-            // Attach after the tracked camera is active. As a child, the HUD also receives
-            // PICO's late/before-render HMD pose updates instead of only following its startup pose.
-            if (xrWorldSpace)
-                AttachHeadLockedCanvas(uiCamera);
+            worldUiAnchor = anchor;
         }
 
         public void ShowMenu(int displayScore, int best, int gems, int lives, int stars, bool isNewRecord, bool hasCompletedRun)
@@ -151,7 +161,7 @@ namespace Wukong.StacklineClassic
         {
             ClosePanel();
             SetOnly(gameGroup);
-            gameScoreText.text = height <= 0 ? string.Empty : height.ToString();
+            gameScoreText.text = Mathf.Max(0, height).ToString();
             SetResources(gems, lives, stars);
         }
 
@@ -236,13 +246,20 @@ namespace Wukong.StacklineClassic
 
         private void OnDestroy()
         {
+            if (ownsCanvas && canvas != null)
+                Destroy(canvas.gameObject);
             if (ownsFont && uiFont != null)
                 Destroy(uiFont);
+            if (roundedSurface != null)
+                Destroy(roundedSurface);
+            if (roundedTexture != null)
+                Destroy(roundedTexture);
         }
 
         private void EnsureCanvas(Camera gameplayCamera)
         {
-            canvas = GetComponentInChildren<Canvas>(true);
+            if (canvas == null)
+                canvas = GetComponentInChildren<Canvas>(true);
             if (canvas == null)
             {
                 GameObject canvasObject = new GameObject("Stackline HUD Canvas");
@@ -251,6 +268,7 @@ namespace Wukong.StacklineClassic
                 canvasObject.layer = 5;
                 canvasObject.transform.SetParent(null, false);
                 canvas = canvasObject.AddComponent<Canvas>();
+                ownsCanvas = true;
                 canvasObject.AddComponent<CanvasScaler>();
                 canvasObject.AddComponent<GraphicRaycaster>();
             }
@@ -305,25 +323,31 @@ namespace Wukong.StacklineClassic
             // so a PICO controller ray can still activate menu Buttons on the visible face.
             xrRaycaster.ignoreReversedGraphics = false;
 
-            AttachHeadLockedCanvas(gameplayCamera);
+            PlaceWorldCanvas(gameplayCamera);
         }
 
-        private void AttachHeadLockedCanvas(Camera gameplayCamera)
+        private void PlaceWorldCanvas(Camera gameplayCamera)
         {
-            if (canvas == null || gameplayCamera == null)
+            if (worldUiPlaced || canvas == null || (worldUiAnchor == null && gameplayCamera == null))
                 return;
 
             Transform canvasTransform = canvas.transform;
-            Transform hmdTransform = gameplayCamera.transform;
-            if (canvasTransform.parent != hmdTransform)
-                canvasTransform.SetParent(hmdTransform, false);
-
-            // Keep the panel in the HMD's local forward direction. The previous world-space
-            // orientation was LookRotation(-camera.forward, camera.up) followed by the user-
-            // requested 180-degree Y correction; together those resolve to the HMD's rotation.
-            // Identity here preserves that corrected visible face while making the UI head-locked.
-            canvasTransform.localPosition = Vector3.forward * HeadLockedDistanceMeters;
-            canvasTransform.localRotation = Quaternion.identity;
+            // The generated scene supplies an authored world pose, independent of tracking.
+            // No camera parent, frame-by-frame following, or repositioning on menu changes.
+            canvasTransform.SetParent(null, false);
+            if (worldUiAnchor != null)
+                canvasTransform.SetPositionAndRotation(worldUiAnchor.position, worldUiAnchor.rotation);
+            else
+            {
+                // Compatibility with older generated scenes: place once, before tracking moves.
+                Vector3 forward = Vector3.ProjectOnPlane(gameplayCamera.transform.forward, Vector3.up);
+                if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
+                forward.Normalize();
+                canvasTransform.SetPositionAndRotation(gameplayCamera.transform.position + forward * WorldUiDistanceMeters,
+                    Quaternion.LookRotation(forward, Vector3.up));
+            }
+            canvasTransform.localScale = Vector3.one * 0.0025f;
+            worldUiPlaced = true;
         }
 
         private void BuildIfNeeded()
@@ -332,12 +356,15 @@ namespace Wukong.StacklineClassic
                 return;
 
             uiFont = CreateUiFont();
+            templePanel = Resources.Load<Sprite>("StacklineUI/TemplePanel");
+            scorePlaque = Resources.Load<Sprite>("StacklineUI/ScorePlaque");
+            BuildRoundedSurface();
             GameObject safeObject = CreateRectObject(canvas.transform, "Safe Area", Vector2.zero, Vector2.one);
             safeAreaRoot = safeObject.GetComponent<RectTransform>();
 
             GameObject particleLayer = CreateRectObject(safeAreaRoot, "Ambient Particles", Vector2.zero, Vector2.one);
             // Isolate the moving decoration from the static text/button canvas batches.
-            // Inherit sorting and the head-locked transform; decorative graphics have no raycaster.
+            // Inherit sorting and the fixed world transform; decorative graphics have no raycaster.
             ambientCanvas = particleLayer.AddComponent<Canvas>();
             ambientCanvas.overrideSorting = false;
             BuildAmbientParticles(particleLayer.transform);
@@ -376,15 +403,8 @@ namespace Wukong.StacklineClassic
         private Text CreateResourceRow(Transform parent, string name, string glyph, Vector2 anchor)
         {
             GameObject row = CreatePointObject(parent, name, anchor, new Vector2(128f, 58f));
-            // Keep the counters visually grouped without turning their empty space into an
-            // input blocker.  The small black-glass chip is based on the Holymolly mobile
-            // component treatment and makes the three rows legible over the busy 3D scene.
-            Image surface = row.AddComponent<Image>();
-            surface.color = new Color(0.015f, 0.018f, 0.022f, 0.66f);
-            surface.raycastTarget = false;
-            Outline surfaceOutline = row.AddComponent<Outline>();
-            surfaceOutline.effectColor = new Color(1f, 0.73f, 0.28f, 0.30f);
-            surfaceOutline.effectDistance = new Vector2(1f, -1f);
+            AddSurface(row, Ink, false);
+            AddFineBorder(row, new Color(0.75f, 0.58f, 0.27f, 0.64f));
             Text number = CreatePointText(row.transform, "Value", "0", 30, new Vector2(0.35f, 0.5f),
                 new Vector2(70f, 54f), TextAnchor.MiddleRight, Color.white);
             Color iconColor = name == "Lives" ? new Color(0.94f, 0.38f, 0.34f, 1f) : new Color(1f, 0.79f, 0.31f, 1f);
@@ -395,20 +415,36 @@ namespace Wukong.StacklineClassic
 
         private void BuildMenu(Transform parent)
         {
+            CreateArtPanel(parent, "Menu Card", new Vector2(0.23f, 0.5f), new Vector2(420f, 560f), templePanel);
+            menuEyebrowText = CreatePointText(parent, "Menu Eyebrow", string.Empty, 16,
+                new Vector2(0.23f, 0.5f), new Vector2(320f, 28f), TextAnchor.MiddleCenter, MutedGold);
+            // Keep the generated ingot and cloud crest clear of native lettering.
+            menuEyebrowText.gameObject.SetActive(false);
             menuTitleText = CreatePointText(parent, "Game Title", L(StacklineText.GameTitle), 40,
                 new Vector2(0.5f, 0.88f), new Vector2(520f, 66f), TextAnchor.MiddleCenter,
-                new Color(1f, 0.82f, 0.38f, 1f));
+                PaleGold);
             Shadow titleShadow = menuTitleText.gameObject.AddComponent<Shadow>();
             titleShadow.effectColor = new Color(0f, 0f, 0f, 0.76f);
             titleShadow.effectDistance = new Vector2(0f, -2f);
             menuScoreText = CreatePointText(parent, "Menu Score", "0", 104, new Vector2(0.5f, 0.76f),
                 new Vector2(360f, 142f), TextAnchor.MiddleCenter, Color.white);
             menuStatusText = CreatePointText(parent, "Menu Status", L(StacklineText.TapToStart), 34, new Vector2(0.5f, 0.63f),
-                new Vector2(460f, 68f), TextAnchor.MiddleCenter, Color.white);
+                new Vector2(460f, 68f), TextAnchor.MiddleCenter, PaleGold);
+            menuScoreLabelText = CreatePointText(parent, "Menu Score Label", string.Empty, 18,
+                new Vector2(0.23f, 0.5f), new Vector2(300f, 32f), TextAnchor.MiddleCenter, MutedGold);
+            menuBestText = CreatePointText(parent, "Menu Best", string.Empty, 20,
+                new Vector2(0.23f, 0.5f), new Vector2(320f, 32f), TextAnchor.MiddleCenter, Color.white);
+            GameObject hintSurface = CreatePointObject(parent, "Menu Hint Surface", new Vector2(0.23f, 0.5f), new Vector2(342f, 46f));
+            AddSurface(hintSurface, new Color(0.018f, 0.052f, 0.056f, 0.97f), false);
+            menuHintText = CreatePointText(parent, "Menu Hint", L(StacklineText.PlacementHint), 17,
+                new Vector2(0.23f, 0.5f), new Vector2(330f, 54f), TextAnchor.MiddleCenter, MutedGold);
+            beginButton = CreateCommandButton(parent, "Begin", L(StacklineText.StartRun),
+                new Vector2(0.23f, 0.5f), new Vector2(310f, 62f), controller.BeginFromMenu,
+                new Color(0.92f, 0.65f, 0.22f, 1f));
 
-            CreateIconButton(parent, "Settings", "\u2699", L(StacklineText.Settings), new Vector2(0.08f, 0.93f), new Vector2(84f, 84f),
+            CreateIconButton(parent, "Settings", "\u2261", L(StacklineText.Settings), new Vector2(0.08f, 0.93f), new Vector2(84f, 84f),
                 () => OpenPanel(MenuPanel.Settings));
-            CreateIconButton(parent, "Challenges", "\u25ce", string.Empty, new Vector2(0.89f, 0.53f), new Vector2(84f, 84f),
+            CreateIconButton(parent, "Challenges", "\u25ce", L(StacklineText.Challenges), new Vector2(0.89f, 0.53f), new Vector2(84f, 84f),
                 () => OpenPanel(MenuPanel.Challenges));
 
             CreateIconButton(parent, "Leaderboard", "\u2582\u2585\u2588", L(StacklineText.Leaderboard), new Vector2(0.34f, 0.105f), new Vector2(132f, 108f),
@@ -419,6 +455,9 @@ namespace Wukong.StacklineClassic
 
         private void BuildGame(Transform parent)
         {
+            CreateArtPanel(parent, "Score Plaque", new Vector2(0.5f, 0.87f), new Vector2(352f, 104f), scorePlaque);
+            CreatePointText(parent, "Height Label", L(StacklineText.CurrentHeight), 16,
+                new Vector2(0.5f, 0.91f), new Vector2(220f, 26f), TextAnchor.MiddleCenter, PaleGold);
             gameScoreText = CreatePointText(parent, "Height", string.Empty, 104, new Vector2(0.5f, 0.82f),
                 new Vector2(340f, 150f), TextAnchor.MiddleCenter, Color.white);
             perfectText = CreatePointText(parent, "Perfect", string.Empty, 25, new Vector2(0.5f, 0.72f),
@@ -428,25 +467,31 @@ namespace Wukong.StacklineClassic
         private void BuildRevive(Transform parent)
         {
             Image shade = parent.gameObject.AddComponent<Image>();
-            shade.color = new Color(0f, 0f, 0f, 0.48f);
+            shade.color = new Color(0.005f, 0.018f, 0.022f, 0.52f);
+            shade.raycastTarget = false;
+            CreateArtPanel(parent, "Revive Card", new Vector2(0.5f, 0.5f), new Vector2(440f, 576f), templePanel);
             CreatePointText(parent, "Revive Title", L(StacklineText.ContinuePrompt), 38, new Vector2(0.5f, 0.67f),
-                new Vector2(480f, 78f), TextAnchor.MiddleCenter, Color.white);
+                new Vector2(480f, 78f), TextAnchor.MiddleCenter, PaleGold);
+            CreatePointText(parent, "Revive Score Label", L(StacklineText.RunHeight), 17,
+                new Vector2(0.5f, 0.65f), new Vector2(300f, 30f), TextAnchor.MiddleCenter, MutedGold);
             reviveHeightText = CreatePointText(parent, "Revive Height", "0", 88, new Vector2(0.5f, 0.56f),
                 new Vector2(300f, 120f), TextAnchor.MiddleCenter, Color.white);
             reviveResourcesText = CreatePointText(parent, "Revive Resources", string.Empty, 22, new Vector2(0.5f, 0.47f),
                 new Vector2(460f, 56f), TextAnchor.MiddleCenter, Color.white);
             CreateCommandButton(parent, "Rescue", L(StacklineText.ThreeSecondRescue), new Vector2(0.5f, 0.36f), new Vector2(360f, 82f),
-                controller.RequestRescue, new Color(0.46f, 0.31f, 0.08f, 0.96f));
+                controller.RequestRescue, new Color(0.92f, 0.65f, 0.22f, 1f));
             lifeButton = CreateCommandButton(parent, "Use Life", L(StacklineText.UseLife), new Vector2(0.5f, 0.28f), new Vector2(320f, 74f),
-                controller.ReviveWithLife, new Color(0.42f, 0.16f, 0.22f, 0.94f));
+                controller.ReviveWithLife, new Color(0.13f, 0.27f, 0.28f, 1f));
             CreateCommandButton(parent, "End Run", L(StacklineText.EndRun), new Vector2(0.5f, 0.20f), new Vector2(250f, 66f),
-                controller.FinishGame, new Color(0.06f, 0.08f, 0.09f, 0.88f));
+                controller.FinishGame, new Color(0.045f, 0.10f, 0.11f, 1f));
         }
 
         private void BuildRescue(Transform parent)
         {
             Image shade = parent.gameObject.AddComponent<Image>();
             shade.color = new Color(0f, 0f, 0f, 0.42f);
+            shade.raycastTarget = false;
+            CreateArtPanel(parent, "Rescue Card", new Vector2(0.5f, 0.53f), new Vector2(330f, 420f), templePanel);
             rescueText = CreatePointText(parent, "Rescue Count", "3", 112, new Vector2(0.5f, 0.55f),
                 new Vector2(300f, 150f), TextAnchor.MiddleCenter, Color.white);
             CreatePointText(parent, "Rescue Label", L(StacklineText.Rescue), 24, new Vector2(0.5f, 0.46f),
@@ -461,13 +506,10 @@ namespace Wukong.StacklineClassic
             dimmer.raycastTarget = true;
 
             GameObject frame = CreateRectObject(panelRoot.transform, "Panel", new Vector2(0.12f, 0.09f), new Vector2(0.88f, 0.91f));
-            Image frameImage = frame.AddComponent<Image>();
-            frameImage.color = new Color(0.035f, 0.032f, 0.026f, 0.94f);
-            Outline frameOutline = frame.AddComponent<Outline>();
-            frameOutline.effectColor = new Color(1f, 0.72f, 0.26f, 0.34f);
-            frameOutline.effectDistance = new Vector2(1.5f, -1.5f);
+            AddSurface(frame, Ink, false);
+            AddFineBorder(frame, new Color(0.83f, 0.65f, 0.32f, 0.8f));
             panelTitle = CreateStretchText(frame.transform, "Title", string.Empty, 32, new Vector2(0.08f, 0.86f),
-                new Vector2(0.84f, 0.98f), TextAnchor.MiddleLeft, Color.white);
+                new Vector2(0.84f, 0.98f), TextAnchor.MiddleLeft, PaleGold);
             CreateIconButton(frame.transform, "Close", "X", string.Empty, new Vector2(0.92f, 0.92f), new Vector2(72f, 72f), ClosePanel);
 
             GameObject viewport = CreateRectObject(frame.transform, "Viewport", new Vector2(0.06f, 0.06f), new Vector2(0.94f, 0.85f));
@@ -776,15 +818,20 @@ namespace Wukong.StacklineClassic
         private void ApplyStaticLocalization()
         {
             if (menuTitleText != null)
-                menuTitleText.text = L(StacklineText.GameTitle);
+                menuTitleText.text = L(lastMenuHasCompletedRun ? StacklineText.RunComplete : StacklineText.GameTitle);
             SetChildText(menuGroup != null ? menuGroup.transform : null, "Settings Button/Label", L(StacklineText.Settings));
+            SetChildText(menuGroup != null ? menuGroup.transform : null, "Challenges Button/Label", L(StacklineText.Challenges));
             SetChildText(menuGroup != null ? menuGroup.transform : null, "Leaderboard Button/Label", L(StacklineText.Leaderboard));
             SetChildText(menuGroup != null ? menuGroup.transform : null, "Life Shop Button/Label", L(StacklineText.Lives));
 
             SetChildText(reviveGroup != null ? reviveGroup.transform : null, "Revive Title", L(StacklineText.ContinuePrompt));
+            SetChildText(reviveGroup != null ? reviveGroup.transform : null, "Revive Score Label", L(StacklineText.RunHeight));
             SetChildText(reviveGroup != null ? reviveGroup.transform : null, "Rescue Button/Label", L(StacklineText.ThreeSecondRescue));
             SetChildText(reviveGroup != null ? reviveGroup.transform : null, "End Run Button/Label", L(StacklineText.EndRun));
             SetChildText(rescueGroup != null ? rescueGroup.transform : null, "Rescue Label", L(StacklineText.Rescue));
+            SetChildText(gameGroup != null ? gameGroup.transform : null, "Height Label", L(StacklineText.CurrentHeight));
+            if (menuHintText != null)
+                menuHintText.text = L(StacklineText.PlacementHint);
 
             UpdateMenuStatusText();
             UpdateLifeButtonLabel();
@@ -798,17 +845,15 @@ namespace Wukong.StacklineClassic
         {
             if (menuStatusText == null)
                 return;
-
-            if (lastMenuIsNewRecord)
-                menuStatusText.text = L(StacklineText.NewRecord);
-            else if (lastMenuHasCompletedRun)
-                menuStatusText.text = lastMenuDisplayScore >= lastMenuBest && lastMenuBest > 0
-                    ? L(StacklineText.Best)
-                    : L(StacklineText.TapToStart);
-            else
-                menuStatusText.text = lastMenuBest > 0
-                    ? L(StacklineText.Best) + "  " + lastMenuBest
-                    : L(StacklineText.TapToStart);
+            menuTitleText.text = L(lastMenuHasCompletedRun ? StacklineText.RunComplete : StacklineText.GameTitle);
+            menuEyebrowText.text = L(lastMenuHasCompletedRun ? StacklineText.GameTitle : StacklineText.TempleChallenge);
+            menuScoreLabelText.text = L(lastMenuHasCompletedRun ? StacklineText.RunHeight : StacklineText.BestHeight);
+            menuBestText.text = lastMenuHasCompletedRun ? L(StacklineText.BestHeight) + "  " + lastMenuBest : L(StacklineText.StackHigher);
+            menuStatusText.text = lastMenuHasCompletedRun
+                ? L(lastMenuIsNewRecord ? StacklineText.NewRecord : StacklineText.TryAgain)
+                : L(StacklineText.PrecisionReward);
+            menuStatusText.color = lastMenuIsNewRecord ? new Color(1f, 0.77f, 0.25f) : PaleGold;
+            SetChildText(menuGroup.transform, "Begin Button/Label", L(lastMenuHasCompletedRun ? StacklineText.PlayAgain : StacklineText.StartRun));
         }
 
         private void UpdateLifeButtonLabel()
@@ -867,6 +912,7 @@ namespace Wukong.StacklineClassic
             rect.sizeDelta = new Vector2(230f, 164f);
             Image image = swatch.AddComponent<Image>();
             image.color = color;
+            image.raycastTarget = false;
             return swatch;
         }
 
@@ -903,12 +949,13 @@ namespace Wukong.StacklineClassic
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = new Vector2(0f, y);
             rect.sizeDelta = new Vector2(0f, height);
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = highlighted ? new Color(accentColor.r * 0.46f, accentColor.g * 0.46f, accentColor.b * 0.46f, 0.96f)
-                : new Color(0.12f, 0.14f, 0.15f, 0.9f);
+            Image image = AddSurface(buttonObject, highlighted ? new Color(0.15f, 0.29f, 0.29f, 1f)
+                : new Color(0.07f, 0.14f, 0.15f, 1f), true);
+            AddFineBorder(buttonObject, new Color(0.74f, 0.57f, 0.27f, highlighted ? 0.9f : 0.35f));
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             button.interactable = interactable;
+            StyleButton(button, false);
             button.onClick.AddListener(() => InvokePanelAction(callback));
             CreatePointText(buttonObject.transform, "Label", label, 20, new Vector2(0.5f, 0.5f),
                 new Vector2(430f, height), TextAnchor.MiddleCenter, Color.white);
@@ -927,13 +974,14 @@ namespace Wukong.StacklineClassic
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = new Vector2(0f, y);
             rect.sizeDelta = new Vector2(0f, 72f);
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = selected
-                ? new Color(accentColor.r * 0.72f, accentColor.g * 0.72f, accentColor.b * 0.72f, 0.98f)
-                : new Color(0.12f, 0.14f, 0.15f, 0.94f);
+            Image image = AddSurface(buttonObject, selected
+                ? new Color(0.35f, 0.34f, 0.20f, 1f)
+                : new Color(0.07f, 0.14f, 0.15f, 1f), true);
+            AddFineBorder(buttonObject, new Color(0.84f, 0.66f, 0.32f, selected ? 0.9f : 0.35f));
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
             button.interactable = !selected;
+            StyleButton(button, false);
             button.onClick.AddListener(() => InvokePanelAction(callback));
             CreatePointText(buttonObject.transform, "Label", selected ? label + "  \u2713" : label, 19,
                 new Vector2(0.5f, 0.5f), new Vector2(210f, 72f), TextAnchor.MiddleCenter, Color.white);
@@ -1077,99 +1125,106 @@ namespace Wukong.StacklineClassic
 
         private void ApplyResourceLayout(bool landscape)
         {
-            Vector2 rowSize = landscape ? new Vector2(120f, 38f) : new Vector2(132f, 52f);
-            int valueSize = landscape ? 23 : 27;
-            int iconSize = landscape ? 23 : 27;
-            SetResourceRowLayout("Resources/Diamonds", landscape ? new Vector2(0.93f, 0.93f) : new Vector2(0.91f, 0.93f),
-                rowSize, valueSize, iconSize);
-            SetResourceRowLayout("Resources/Lives", landscape ? new Vector2(0.93f, 0.872f) : new Vector2(0.91f, 0.875f),
-                rowSize, valueSize, iconSize);
-            SetResourceRowLayout("Resources/Stars", landscape ? new Vector2(0.93f, 0.814f) : new Vector2(0.91f, 0.82f),
-                rowSize, valueSize, iconSize);
-            SetPointLayout(safeAreaRoot, "Resources/Diamond Bonus",
-                landscape ? new Vector2(0.81f, 0.93f) : new Vector2(0.77f, 0.93f),
-                landscape ? new Vector2(96f, 34f) : new Vector2(106f, 46f));
+            Vector2 rowSize = landscape ? new Vector2(98f, 42f) : new Vector2(126f, 52f);
+            float top = landscape ? 0.942f : 0.96f;
+            float right = landscape ? 0.946f : 0.87f;
+            float gap = landscape ? 0.084f : 0.19f;
+            SetResourceRowLayout("Resources/Diamonds", new Vector2(right - gap * 2f, top), rowSize, landscape ? 22 : 27, landscape ? 21 : 26);
+            SetResourceRowLayout("Resources/Lives", new Vector2(right - gap, top), rowSize, landscape ? 22 : 27, landscape ? 21 : 26);
+            SetResourceRowLayout("Resources/Stars", new Vector2(right, top), rowSize, landscape ? 22 : 27, landscape ? 21 : 26);
+            SetPointLayout(safeAreaRoot, "Resources/Diamond Bonus", new Vector2(right - gap * 2f, top - 0.06f),
+                new Vector2(100f, 34f));
             SetTextLayout(safeAreaRoot, "Resources/Diamond Bonus", landscape ? 18 : 21);
         }
 
         private void ApplyMenuLayout(bool landscape)
         {
-            if (landscape)
+            // Keep the world-space card toward the left edge so it frames the temple
+            // and gold tower instead of covering the center of the player's view.
+            Vector2 center = landscape ? new Vector2(0.16f, 0.50f) : new Vector2(0.5f, 0.63f);
+            Vector2 cardSize = landscape ? new Vector2(420f, 560f) : new Vector2(560f, 680f);
+            SetPointLayout(safeAreaRoot, "Menu/Menu Card", center, cardSize);
+            LayoutInCard("Menu/Menu Eyebrow", center, cardSize, new Vector2(0f, 0.40f), new Vector2(cardSize.x * 0.8f, 28f));
+            LayoutInCard("Menu/Game Title", center, cardSize, new Vector2(0f, 0.31f), new Vector2(cardSize.x * 0.84f, 58f));
+            LayoutInCard("Menu/Menu Score Label", center, cardSize, new Vector2(0f, 0.18f), new Vector2(cardSize.x * 0.8f, 30f));
+            LayoutInCard("Menu/Menu Score", center, cardSize, new Vector2(0f, 0.075f), new Vector2(cardSize.x * 0.8f, landscape ? 86f : 106f));
+            LayoutInCard("Menu/Menu Best", center, cardSize, new Vector2(0f, -0.035f), new Vector2(cardSize.x * 0.8f, 32f));
+            LayoutInCard("Menu/Menu Status", center, cardSize, new Vector2(0f, -0.115f), new Vector2(cardSize.x * 0.8f, 34f));
+            LayoutInCard("Menu/Begin Button", center, cardSize, new Vector2(0f, -0.235f), new Vector2(cardSize.x * 0.74f, landscape ? 60f : 74f));
+            SetPointLayout(menuGroup.transform, "Begin Button/Label", new Vector2(0.5f, 0.5f), new Vector2(cardSize.x * 0.65f, 54f));
+            LayoutInCard("Menu/Menu Hint", center, cardSize, new Vector2(0f, -0.33f), new Vector2(cardSize.x * 0.80f, 46f));
+            LayoutInCard("Menu/Menu Hint Surface", center, cardSize, new Vector2(0f, -0.33f), new Vector2(cardSize.x * 0.82f, 46f));
+            SetTextLayout(safeAreaRoot, "Menu/Game Title", landscape ? 38 : 46);
+            SetTextLayout(safeAreaRoot, "Menu/Menu Score", landscape ? 74 : 94);
+            SetTextLayout(safeAreaRoot, "Menu/Menu Status", landscape ? 20 : 25);
+            SetTextLayout(safeAreaRoot, "Menu/Menu Score Label", landscape ? 17 : 22);
+            SetTextLayout(safeAreaRoot, "Menu/Menu Best", landscape ? 18 : 23);
+            SetTextLayout(safeAreaRoot, "Menu/Menu Hint", landscape ? 15 : 19);
+            SetTextLayout(safeAreaRoot, "Menu/Begin Button/Label", landscape ? 23 : 28);
+
+            string[] dock = { "Leaderboard", "Life Shop", "Challenges" };
+            for (int i = 0; i < dock.Length; i++)
             {
-                SetPointLayout(safeAreaRoot, "Menu/Game Title", new Vector2(0.5f, 0.905f), new Vector2(430f, 50f));
-                SetTextLayout(safeAreaRoot, "Menu/Game Title", 34);
-                SetPointLayout(safeAreaRoot, "Menu/Menu Score", new Vector2(0.5f, 0.79f), new Vector2(300f, 90f));
-                SetTextLayout(safeAreaRoot, "Menu/Menu Score", 76);
-                SetPointLayout(safeAreaRoot, "Menu/Menu Status", new Vector2(0.5f, 0.685f), new Vector2(390f, 46f));
-                SetTextLayout(safeAreaRoot, "Menu/Menu Status", 25);
-
-                SetIconButtonLayout("Menu/Settings Button", new Vector2(0.065f, 0.91f), new Vector2(68f, 68f), true, 27, 12);
-                SetIconButtonLayout("Menu/Challenges Button", new Vector2(0.938f, 0.56f), new Vector2(68f, 68f), false, 29, 0);
-                SetIconButtonLayout("Menu/Leaderboard Button", new Vector2(0.34f, 0.125f), new Vector2(210f, 76f), true, 23, 13);
-                SetIconButtonLayout("Menu/Life Shop Button", new Vector2(0.66f, 0.125f), new Vector2(210f, 76f), true, 26, 13);
-                SetPointLayout(safeAreaRoot, "Toast", new Vector2(0.5f, 0.22f), new Vector2(420f, 44f));
-                SetTextLayout(safeAreaRoot, "Toast", 20);
-                return;
+                string path = "Menu/" + dock[i] + " Button";
+                Vector2 dimensions = new Vector2(cardSize.x * 0.235f, landscape ? 48f : 60f);
+                SetIconButtonLayout(path, center, dimensions, true, landscape ? 19 : 23, landscape ? 12 : 15);
+                LayoutInCard(path, center, cardSize, new Vector2((i - 1) * 0.265f, -0.42f), dimensions);
             }
+            SetIconButtonLayout("Menu/Settings Button", landscape ? new Vector2(0.053f, 0.942f) : new Vector2(0.08f, 0.955f),
+                landscape ? new Vector2(72f, 54f) : new Vector2(86f, 70f), true, landscape ? 24 : 28, landscape ? 12 : 15);
+            SetPointLayout(safeAreaRoot, "Toast", landscape ? new Vector2(0.66f, 0.16f) : new Vector2(0.5f, 0.25f),
+                landscape ? new Vector2(450f, 52f) : new Vector2(540f, 64f));
+            SetTextLayout(safeAreaRoot, "Toast", landscape ? 21 : 25);
+        }
 
-            SetPointLayout(safeAreaRoot, "Menu/Game Title", new Vector2(0.5f, 0.875f), new Vector2(520f, 66f));
-            SetTextLayout(safeAreaRoot, "Menu/Game Title", 40);
-            SetPointLayout(safeAreaRoot, "Menu/Menu Score", new Vector2(0.5f, 0.745f), new Vector2(360f, 128f));
-            SetTextLayout(safeAreaRoot, "Menu/Menu Score", 100);
-            SetPointLayout(safeAreaRoot, "Menu/Menu Status", new Vector2(0.5f, 0.635f), new Vector2(470f, 60f));
-            SetTextLayout(safeAreaRoot, "Menu/Menu Status", 30);
-
-            SetIconButtonLayout("Menu/Settings Button", new Vector2(0.085f, 0.925f), new Vector2(78f, 78f), true, 31, 14);
-            SetIconButtonLayout("Menu/Challenges Button", new Vector2(0.91f, 0.53f), new Vector2(78f, 78f), false, 32, 0);
-            SetIconButtonLayout("Menu/Leaderboard Button", new Vector2(0.34f, 0.10f), new Vector2(190f, 96f), true, 27, 16);
-            SetIconButtonLayout("Menu/Life Shop Button", new Vector2(0.66f, 0.10f), new Vector2(190f, 96f), true, 30, 16);
-            SetPointLayout(safeAreaRoot, "Toast", new Vector2(0.5f, 0.18f), new Vector2(520f, 58f));
-            SetTextLayout(safeAreaRoot, "Toast", 22);
+        private void LayoutInCard(string path, Vector2 center, Vector2 cardSize, Vector2 position, Vector2 dimensions)
+        {
+            SetPointLayout(safeAreaRoot, path, center, dimensions);
+            RectTransform rect = safeAreaRoot.Find(path) as RectTransform;
+            if (rect != null)
+                rect.anchoredPosition = Vector2.Scale(cardSize, position);
         }
 
         private void ApplyGameplayLayout(bool landscape)
         {
-            SetPointLayout(safeAreaRoot, "Game/Height", landscape ? new Vector2(0.5f, 0.84f) : new Vector2(0.5f, 0.82f),
-                landscape ? new Vector2(280f, 98f) : new Vector2(340f, 150f));
-            SetTextLayout(safeAreaRoot, "Game/Height", landscape ? 78 : 104);
-            SetPointLayout(safeAreaRoot, "Game/Perfect", landscape ? new Vector2(0.5f, 0.72f) : new Vector2(0.5f, 0.72f),
+            Vector2 center = landscape ? new Vector2(0.5f, 0.855f) : new Vector2(0.5f, 0.845f);
+            SetPointLayout(safeAreaRoot, "Game/Score Plaque", center, landscape ? new Vector2(352f, 104f) : new Vector2(416f, 120f));
+            SetPointLayout(safeAreaRoot, "Game/Height Label", center, new Vector2(250f, 25f));
+            ((RectTransform)safeAreaRoot.Find("Game/Height Label")).anchoredPosition = new Vector2(0f, landscape ? 29f : 35f);
+            SetPointLayout(safeAreaRoot, "Game/Height", center, new Vector2(250f, landscape ? 66f : 78f));
+            ((RectTransform)safeAreaRoot.Find("Game/Height")).anchoredPosition = new Vector2(0f, -11f);
+            SetTextLayout(safeAreaRoot, "Game/Height", landscape ? 54 : 66);
+            SetTextLayout(safeAreaRoot, "Game/Height Label", landscape ? 15 : 19);
+            SetPointLayout(safeAreaRoot, "Game/Perfect", landscape ? new Vector2(0.5f, 0.72f) : new Vector2(0.5f, 0.765f),
                 landscape ? new Vector2(380f, 42f) : new Vector2(420f, 62f));
-            SetTextLayout(safeAreaRoot, "Game/Perfect", landscape ? 22 : 25);
+            SetTextLayout(safeAreaRoot, "Game/Perfect", landscape ? 23 : 29);
         }
 
         private void ApplyReviveLayout(bool landscape)
         {
-            if (landscape)
+            Vector2 center = landscape ? new Vector2(0.5f, 0.49f) : new Vector2(0.5f, 0.54f);
+            Vector2 size = landscape ? new Vector2(440f, 576f) : new Vector2(580f, 750f);
+            SetPointLayout(safeAreaRoot, "Revive/Revive Card", center, size);
+            LayoutInCard("Revive/Revive Title", center, size, new Vector2(0f, 0.36f), new Vector2(size.x * 0.82f, 60f));
+            LayoutInCard("Revive/Revive Score Label", center, size, new Vector2(0f, 0.225f), new Vector2(310f, 30f));
+            LayoutInCard("Revive/Revive Height", center, size, new Vector2(0f, 0.12f), new Vector2(300f, landscape ? 84f : 108f));
+            LayoutInCard("Revive/Revive Resources", center, size, new Vector2(0f, -0.025f), new Vector2(size.x * 0.8f, 44f));
+            SetTextLayout(safeAreaRoot, "Revive/Revive Title", landscape ? 36 : 46);
+            SetTextLayout(safeAreaRoot, "Revive/Revive Height", landscape ? 72 : 94);
+            SetTextLayout(safeAreaRoot, "Revive/Revive Resources", landscape ? 22 : 28);
+            string[] actions = { "Rescue", "Use Life", "End Run" };
+            for (int i = 0; i < actions.Length; i++)
             {
-                SetPointLayout(safeAreaRoot, "Revive/Revive Title", new Vector2(0.5f, 0.72f), new Vector2(480f, 58f));
-                SetTextLayout(safeAreaRoot, "Revive/Revive Title", 34);
-                SetPointLayout(safeAreaRoot, "Revive/Revive Height", new Vector2(0.5f, 0.60f), new Vector2(260f, 86f));
-                SetTextLayout(safeAreaRoot, "Revive/Revive Height", 72);
-                SetPointLayout(safeAreaRoot, "Revive/Revive Resources", new Vector2(0.5f, 0.50f), new Vector2(400f, 42f));
-                SetTextLayout(safeAreaRoot, "Revive/Revive Resources", 18);
-                SetCommandButtonLayout("Revive/Rescue Button", new Vector2(0.5f, 0.385f), new Vector2(330f, 62f), 18);
-                SetCommandButtonLayout("Revive/Use Life Button", new Vector2(0.5f, 0.275f), new Vector2(290f, 56f), 17);
-                SetCommandButtonLayout("Revive/End Run Button", new Vector2(0.5f, 0.175f), new Vector2(230f, 50f), 16);
-                SetPointLayout(safeAreaRoot, "Rescue/Rescue Count", new Vector2(0.5f, 0.59f), new Vector2(250f, 104f));
-                SetTextLayout(safeAreaRoot, "Rescue/Rescue Count", 80);
-                SetPointLayout(safeAreaRoot, "Rescue/Rescue Label", new Vector2(0.5f, 0.425f), new Vector2(280f, 44f));
-                SetTextLayout(safeAreaRoot, "Rescue/Rescue Label", 21);
-                return;
+                string path = "Revive/" + actions[i] + " Button";
+                Vector2 dimensions = new Vector2(size.x * 0.74f, landscape ? 62f : 80f);
+                SetCommandButtonLayout(path, center, dimensions, landscape ? 21 : 28);
+                LayoutInCard(path, center, size, new Vector2(0f, -0.16f - i * 0.125f), dimensions);
             }
-
-            SetPointLayout(safeAreaRoot, "Revive/Revive Title", new Vector2(0.5f, 0.67f), new Vector2(480f, 78f));
-            SetTextLayout(safeAreaRoot, "Revive/Revive Title", 38);
-            SetPointLayout(safeAreaRoot, "Revive/Revive Height", new Vector2(0.5f, 0.56f), new Vector2(300f, 120f));
-            SetTextLayout(safeAreaRoot, "Revive/Revive Height", 88);
-            SetPointLayout(safeAreaRoot, "Revive/Revive Resources", new Vector2(0.5f, 0.47f), new Vector2(460f, 56f));
-            SetTextLayout(safeAreaRoot, "Revive/Revive Resources", 22);
-            SetCommandButtonLayout("Revive/Rescue Button", new Vector2(0.5f, 0.36f), new Vector2(360f, 82f), 20);
-            SetCommandButtonLayout("Revive/Use Life Button", new Vector2(0.5f, 0.28f), new Vector2(320f, 74f), 20);
-            SetCommandButtonLayout("Revive/End Run Button", new Vector2(0.5f, 0.20f), new Vector2(250f, 66f), 20);
-            SetPointLayout(safeAreaRoot, "Rescue/Rescue Count", new Vector2(0.5f, 0.55f), new Vector2(300f, 150f));
-            SetTextLayout(safeAreaRoot, "Rescue/Rescue Count", 112);
-            SetPointLayout(safeAreaRoot, "Rescue/Rescue Label", new Vector2(0.5f, 0.46f), new Vector2(300f, 60f));
-            SetTextLayout(safeAreaRoot, "Rescue/Rescue Label", 24);
+            SetPointLayout(safeAreaRoot, "Rescue/Rescue Card", center, landscape ? new Vector2(300f, 380f) : new Vector2(420f, 520f));
+            SetPointLayout(safeAreaRoot, "Rescue/Rescue Count", center, new Vector2(250f, landscape ? 130f : 160f));
+            SetTextLayout(safeAreaRoot, "Rescue/Rescue Count", landscape ? 104 : 132);
+            SetPointLayout(safeAreaRoot, "Rescue/Rescue Label", center - new Vector2(0f, landscape ? 0.125f : 0.065f), new Vector2(280f, 44f));
+            SetTextLayout(safeAreaRoot, "Rescue/Rescue Label", landscape ? 23 : 28);
         }
 
         private void SetResourceRowLayout(string path, Vector2 anchor, Vector2 rowSize, int valueSize, int iconSize)
@@ -1272,6 +1327,74 @@ namespace Wukong.StacklineClassic
             return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
+        private void BuildRoundedSurface()
+        {
+            const int size = 32;
+            const float radius = 7f;
+            roundedTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+            roundedTexture.name = "Stackline UI Rounded Surface";
+            roundedTexture.wrapMode = TextureWrapMode.Clamp;
+            roundedTexture.filterMode = FilterMode.Bilinear;
+            Color[] pixels = new Color[size * size];
+            for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = Mathf.Max(Mathf.Abs(x + 0.5f - size * 0.5f) - (size * 0.5f - radius), 0f);
+                    float dy = Mathf.Max(Mathf.Abs(y + 0.5f - size * 0.5f) - (size * 0.5f - radius), 0f);
+                    pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy)));
+                }
+            roundedTexture.SetPixels(pixels);
+            roundedTexture.Apply(false, true);
+            roundedSurface = Sprite.Create(roundedTexture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f),
+                100f, 0, SpriteMeshType.FullRect, new Vector4(8f, 8f, 8f, 8f));
+        }
+
+        private Image AddSurface(GameObject target, Color color, bool receivesInput)
+        {
+            Image image = target.AddComponent<Image>();
+            image.sprite = roundedSurface;
+            image.type = Image.Type.Sliced;
+            image.color = color;
+            image.raycastTarget = receivesInput;
+            return image;
+        }
+
+        private static void AddFineBorder(GameObject target, Color color)
+        {
+            Outline border = target.AddComponent<Outline>();
+            border.effectColor = color;
+            border.effectDistance = new Vector2(1f, -1f);
+            border.useGraphicAlpha = true;
+        }
+
+        private void CreateArtPanel(Transform parent, string name, Vector2 anchor, Vector2 dimensions, Sprite art)
+        {
+            GameObject panel = CreatePointObject(parent, name, anchor, dimensions);
+            Image image = AddSurface(panel, Ink, false);
+            AddFineBorder(panel, new Color(0.78f, 0.61f, 0.30f, 0.72f));
+            if (art != null)
+            {
+                image.sprite = art;
+                image.type = Image.Type.Simple;
+                image.color = Color.white;
+            }
+            // A soft central ink wash keeps native text legible over the generated ornament.
+            GameObject inset = CreateRectObject(panel.transform, "Reading Surface", new Vector2(0.06f, 0.08f), new Vector2(0.94f, 0.92f));
+            AddSurface(inset, new Color(0.015f, 0.055f, 0.065f, art != null ? 0.22f : 0.0f), false);
+        }
+
+        private static void StyleButton(Button button, bool primary)
+        {
+            ColorBlock colors = button.colors;
+            colors.normalColor = Color.white;
+            colors.highlightedColor = primary ? new Color(1f, 1f, 0.84f, 1f) : new Color(1.35f, 1.35f, 1.25f, 1f);
+            colors.selectedColor = colors.highlightedColor;
+            colors.pressedColor = new Color(0.74f, 0.81f, 0.79f, 1f);
+            colors.disabledColor = new Color(0.44f, 0.52f, 0.52f, 0.72f);
+            colors.fadeDuration = 0.10f;
+            button.colors = colors;
+        }
+
         private GameObject CreateGroup(Transform parent, string name)
         {
             return CreateRectObject(parent, name, Vector2.zero, Vector2.one);
@@ -1338,16 +1461,17 @@ namespace Wukong.StacklineClassic
             Vector2 dimensions, Action callback)
         {
             GameObject buttonObject = CreatePointObject(parent, name + " Button", anchor, dimensions);
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = new Color(1f, 1f, 1f, 0.001f);
+            Image image = AddSurface(buttonObject, new Color(0.06f, 0.15f, 0.16f, 0.96f), true);
+            AddFineBorder(buttonObject, new Color(0.67f, 0.54f, 0.28f, 0.55f));
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
+            StyleButton(button, false);
             button.onClick.AddListener(() => callback?.Invoke());
             float iconY = string.IsNullOrEmpty(label) ? 0.5f : 0.63f;
             int iconSize = glyph.Contains("\n") ? 24 : 39;
             CreatePointText(buttonObject.transform, "Icon", glyph, iconSize, new Vector2(0.5f, iconY),
                 new Vector2(dimensions.x, string.IsNullOrEmpty(label) ? dimensions.y : dimensions.y * 0.58f),
-                TextAnchor.MiddleCenter, Color.white);
+                TextAnchor.MiddleCenter, PaleGold);
             if (!string.IsNullOrEmpty(label))
                 CreatePointText(buttonObject.transform, "Label", label, 17, new Vector2(0.5f, 0.17f),
                     new Vector2(dimensions.x, 38f), TextAnchor.MiddleCenter, new Color(1f, 1f, 1f, 0.82f));
@@ -1358,13 +1482,15 @@ namespace Wukong.StacklineClassic
             Action callback, Color background)
         {
             GameObject buttonObject = CreatePointObject(parent, name + " Button", anchor, dimensions);
-            Image image = buttonObject.AddComponent<Image>();
-            image.color = background;
+            Image image = AddSurface(buttonObject, background, true);
+            AddFineBorder(buttonObject, new Color(0.95f, 0.77f, 0.42f, 0.75f));
             Button button = buttonObject.AddComponent<Button>();
             button.targetGraphic = image;
+            bool primary = background.r > 0.7f;
+            StyleButton(button, primary);
             button.onClick.AddListener(() => callback?.Invoke());
             CreatePointText(buttonObject.transform, "Label", label, 20, new Vector2(0.5f, 0.5f), dimensions,
-                TextAnchor.MiddleCenter, Color.white);
+                TextAnchor.MiddleCenter, primary ? new Color(0.13f, 0.09f, 0.025f, 1f) : PaleGold);
             return button;
         }
     }
