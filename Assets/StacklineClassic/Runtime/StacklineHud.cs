@@ -674,7 +674,7 @@ namespace Wukong.StacklineClassic
         private void BuildSettingsPanel()
         {
             panelTitle.text = L(StacklineText.Settings);
-            SetPanelContentHeight(820f);
+            SetPanelContentHeight(640f);
             CreatePanelText(L(StacklineText.Sound), 22, -18f, 54f, TextAnchor.MiddleLeft);
             CreatePanelToggleButton(controller.SoundEnabled ? L(StacklineText.On) : L(StacklineText.Off), -84f, 70f, () =>
             {
@@ -687,12 +687,7 @@ namespace Wukong.StacklineClassic
                 controller.ToggleHaptics();
                 RebuildCurrentPanel();
             }, controller.HapticsEnabled);
-            CreatePanelText(L(StacklineText.Language), 22, -350f, 54f, TextAnchor.MiddleLeft);
-            CreatePanelChoiceButton(L(StacklineText.Chinese), -416f, 0.08f, 0.48f,
-                () => SetLanguage(StacklineLanguage.Chinese), language == StacklineLanguage.Chinese);
-            CreatePanelChoiceButton(L(StacklineText.English), -416f, 0.52f, 0.92f,
-                () => SetLanguage(StacklineLanguage.English), language == StacklineLanguage.English);
-            CreatePanelText(L(StacklineText.RulesDescription), 18, -540f, 132f, TextAnchor.UpperLeft);
+            CreatePanelText(L(StacklineText.RulesDescription), 18, -360f, 132f, TextAnchor.UpperLeft);
         }
 
         private void BuildChallengesPanel()
@@ -801,18 +796,6 @@ namespace Wukong.StacklineClassic
                 RefreshPersistentState();
             }, controller.Gems >= 8);
             CreatePanelText(L(StacklineText.LifeDescription), 18, -380f, 90f, TextAnchor.UpperLeft);
-        }
-
-        private void SetLanguage(StacklineLanguage newLanguage)
-        {
-            if (language == newLanguage)
-                return;
-
-            language = newLanguage;
-            StacklineProfileStore.SaveLanguageCode(StacklineLocalization.ToCode(language));
-            ApplyStaticLocalization();
-            if (currentPanel != MenuPanel.None)
-                RebuildCurrentPanel();
         }
 
         private void ApplyStaticLocalization()
@@ -959,32 +942,6 @@ namespace Wukong.StacklineClassic
             button.onClick.AddListener(() => InvokePanelAction(callback));
             CreatePointText(buttonObject.transform, "Label", label, 20, new Vector2(0.5f, 0.5f),
                 new Vector2(430f, height), TextAnchor.MiddleCenter, Color.white);
-            return button;
-        }
-
-        private Button CreatePanelChoiceButton(string label, float y, float anchorMinX, float anchorMaxX,
-            Action callback, bool selected)
-        {
-            GameObject buttonObject = new GameObject(label + " Language Button");
-            buttonObject.layer = panelContent.gameObject.layer;
-            buttonObject.transform.SetParent(panelContent, false);
-            RectTransform rect = buttonObject.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(anchorMinX, 1f);
-            rect.anchorMax = new Vector2(anchorMaxX, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.anchoredPosition = new Vector2(0f, y);
-            rect.sizeDelta = new Vector2(0f, 72f);
-            Image image = AddSurface(buttonObject, selected
-                ? new Color(0.35f, 0.34f, 0.20f, 1f)
-                : new Color(0.07f, 0.14f, 0.15f, 1f), true);
-            AddFineBorder(buttonObject, new Color(0.84f, 0.66f, 0.32f, selected ? 0.9f : 0.35f));
-            Button button = buttonObject.AddComponent<Button>();
-            button.targetGraphic = image;
-            button.interactable = !selected;
-            StyleButton(button, false);
-            button.onClick.AddListener(() => InvokePanelAction(callback));
-            CreatePointText(buttonObject.transform, "Label", selected ? label + "  \u2713" : label, 19,
-                new Vector2(0.5f, 0.5f), new Vector2(210f, 72f), TextAnchor.MiddleCenter, Color.white);
             return button;
         }
 

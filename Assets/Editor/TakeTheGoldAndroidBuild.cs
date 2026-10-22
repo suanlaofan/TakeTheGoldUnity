@@ -55,8 +55,8 @@ public static class TakeTheGoldAndroidBuild
         bool previousTiming = PlayerSettings.enableFrameTimingStats;
         try
         {
-            PlayerSettings.bundleVersion = "1.2.1-audio-fx.1";
-            PlayerSettings.Android.bundleVersionCode = Math.Max(6, previousCode + 1);
+            PlayerSettings.bundleVersion = "1.2.2-audio-fx.1";
+            PlayerSettings.Android.bundleVersionCode = Math.Max(7, previousCode + 1);
             PlayerSettings.enableFrameTimingStats = diagnostics;
             using (new StacklinePicoBuildProfile.BuildPipelineScope(pipeline))
             {

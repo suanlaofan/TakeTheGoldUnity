@@ -30,7 +30,7 @@ namespace Wukong.StacklineClassic
         public const int CurrentSchemaVersion = 3;
         public const int RecentScoreLimit = 8;
         public const string ProfileKey = "Wukong.StacklineClassic.Profile.V3";
-        public const string DefaultLanguageCode = StacklineLocalization.ChineseCode;
+        public const string DefaultLanguageCode = StacklineLocalization.EnglishCode;
         public const string LanguageKey = "Wukong.StacklineClassic.Language";
 
         private const string LegacyBestScoreKey = "Wukong.StacklineClassic.Best";

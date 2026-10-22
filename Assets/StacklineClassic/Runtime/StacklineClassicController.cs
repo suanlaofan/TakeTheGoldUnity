@@ -694,7 +694,7 @@ namespace Wukong.StacklineClassic
             {
                 int cost = GetThemeCost(index);
                 if (gems < cost)
-                    return "NEED " + cost + " GOLD";
+                    return "NEED \u25c6 " + cost;
                 gems -= cost;
                 profile.unlockedThemeMask |= 1 << index;
             }
@@ -736,7 +736,7 @@ namespace Wukong.StacklineClassic
                 return "AD-FREE ACTIVE";
             const int cost = 5;
             if (gems < cost)
-                return "NEED 5 GOLD";
+                return "NEED \u25c6 " + cost;
             gems -= cost;
             profile.adFree = true;
             profile.doubleGems = true;
@@ -755,7 +755,7 @@ namespace Wukong.StacklineClassic
             gems += 2;
             SaveProfile();
             hud?.RefreshPersistentState();
-            return "+2 GOLD";
+            return "+2 \u25c6";
         }
 
         public string BuyLives(int amount, int cost)
@@ -764,7 +764,7 @@ namespace Wukong.StacklineClassic
                 return "UNAVAILABLE";
             EnsureProfile();
             if (gems < cost)
-                return "NOT ENOUGH GOLD";
+                return "NOT ENOUGH \u25c6";
             gems -= cost;
             lives += amount;
             SaveProfile();
