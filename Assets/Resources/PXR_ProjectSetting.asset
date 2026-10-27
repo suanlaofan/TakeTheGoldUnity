@@ -55,5 +55,5 @@ MonoBehaviour:
   validationETFREnabled: 0
   portalInited: 1
   isDataCollectionDisabled: 0
-  portalFirstSelected: 1
+  portalFirstSelected: 0
   isSpatialAdapter: 0

@@ -148,7 +148,7 @@ PlayerSettings:
   loadStoreDebugModeEnabled: 0
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
-  bundleVersion: 0.1.0
+  bundleVersion: 0.1.1
   preloadedAssets:
   - {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   metroInputSource: 0
@@ -179,7 +179,7 @@ PlayerSettings:
     iPhone: 0
     tvOS: 0
   overrideDefaultApplicationIdentifier: 1
-  AndroidBundleVersionCode: 1
+  AndroidBundleVersionCode: 2
   AndroidMinSdkVersion: 29
   AndroidTargetSdkVersion: 0
   AndroidPreferredInstallLocation: 1
@@ -858,7 +858,7 @@ PlayerSettings:
   webWasm2023: 1
   webEnableSubmoduleStrippingCompatibility: 0
   scriptingDefineSymbols:
-    Android: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER
+    Android: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER;ENABLE_PICO_INTERACTION_PACK
     Standalone: ENABLE_PICO_XR_SDK;PICO_SPATIALIZER;ENABLE_PICO_INTERACTION_PACK
   additionalCompilerArguments: {}
   platformArchitecture: {}
